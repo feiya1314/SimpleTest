@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:task="http://www.springframework.org/schema/c"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd">
+    <!--<task:annotation-driven/>-->
+
+    <bean id="propertyConfig" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+        <property name="location" value="classpath:config-test.properties"/>
+    </bean>
+    <bean id="mapjson" class="mytest.TestMapFromJson"/>
+    <bean id = "weatherPublisher" class="mytest.event.WeatherPublisher"/>
+    <bean id = "weatherListener" class="mytest.listener.WeatherListener"/>
+    <bean id = "rainListener" class="mytest.listener.RainListener"/>
+    <bean id = "stormListener" class="mytest.listener.StormListener"/>
+    <bean id = "exceptioninterceptor" class="mytest.springintercepter.ExceptionInterceptor"/>
+    <bean id = "interceptorTest" class="mytest.aop.InterceptorTest"/>
+   <!-- <aop:config proxy-target-class="false">
+        &lt;!&ndash;<aop:aspect&ndash;&gt;
+    </aop:config>-->
+    <!--使用ProxyFactoryBean创建代理-->
+    <bean id="interceptorTestProxy" class="org.springframework.aop.framework.ProxyFactoryBean">
+        <property name="proxyTargetClass" value="false"/>
+        <property name="target" ref="interceptorTest"/>
+        <property name="interceptorNames">
+            <list>
+                <value>exceptioninterceptor</value>
+            </list>
+        </property>
+    </bean>
+    <bean id = "esConfig" class="mytest.es.ElasticSearchConfig">
+        <property name="clusterName" value="yfescluster2"/>
+        <!--也可以通过不用array ，而是直接<value>a,b,c</value>的形式-->
+        <property name="seeds">
+            <array>
+                <value>192.168.3.10</value>
+                <value>192.168.3.8</value>
+            </array>
+        </property>
+    </bean>
+    <bean id="esClientFactory" class="mytest.es.EsClientFactory">
+        <constructor-arg ref="esConfig"/>
+    </bean>
+</beans>
