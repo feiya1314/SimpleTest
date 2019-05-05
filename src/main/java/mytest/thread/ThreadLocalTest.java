@@ -11,12 +11,16 @@ package mytest.thread;
 public class ThreadLocalTest {
     public static void main(String[] args) {
         for (int i =0 ;i<5;i++){
-            new Thread(()->{
+            Thread thread = new Thread(()->{
                 ThreadLocalSession session = ThreadLocalSessionManager.getSession();
+                System.out.println(Thread.currentThread().getName());
                 System.out.println(session.toString());
                 session.destroy();
                 System.out.println(session.toString());
-            }).start();
+
+            });
+            thread.setName("thread - "+(i+1));
+            thread.start();
             try {
                 Thread.sleep(500);
             }catch (Exception e){
