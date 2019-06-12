@@ -1,21 +1,33 @@
 package mytest.concurrent.synchronizedtest;
 
 public class RequestHandler {
-    private int requestNum=0;
-    private int requestNumWithSync=0;
+
+    private static Nums nums;
+
+    public RequestHandler(Nums nums) {
+        this.nums = nums;
+    }
+
     public void requestCounter(){
-        requestNum ++;
+        nums.requestNumInc();
     }
 
     public synchronized void requestCounterWithSync() {
-        requestNumWithSync ++;
+        nums.requestNumWithSyncInc();
+    }
+
+    public static synchronized  void requestNumWithStaticSyncInc() {
+        nums.requestNumWithStaticSyncInc();
+    }
+
+    public void requestNumWithClassSyncInc(){
+        synchronized (RequestHandler.class) {
+            nums.requestNumWithClassSyncInc();
+        }
     }
 
     public void getRequestNum(){
-        System.out.println("requestnum: "+requestNum);
+        nums.printNum();
     }
 
-    public void getRequestNumWithSync() {
-        System.out.println("requestNumWithSync: "+requestNumWithSync);
-    }
 }
