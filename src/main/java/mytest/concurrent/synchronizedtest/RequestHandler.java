@@ -19,6 +19,16 @@ public class RequestHandler {
     public static synchronized  void requestNumWithStaticSyncInc() {
         nums.requestNumWithStaticSyncInc();
     }
+    public void requestNumWithBlockSyncInc() {
+        synchronized(this) {
+            nums.requestNumWithStaticBlockSyncInc();
+        }
+    }
+    public void requestNumWithStaticBlockClassSyncInc() {
+        synchronized(RequestHandler.class) {
+            nums.requestNumWithStaticBlockClassSyncInc();
+        }
+    }
 
     public void requestNumWithClassSyncInc(){
         synchronized (RequestHandler.class) {

@@ -21,6 +21,8 @@ public class Counter implements Runnable {
             requestHandler.requestCounterWithSync();
             requestHandler.requestNumWithStaticSyncInc();
             requestHandler.requestNumWithClassSyncInc();
+            requestHandler.requestNumWithBlockSyncInc();
+            requestHandler.requestNumWithStaticBlockClassSyncInc();
         }
         countDownLatch.countDown();
     }
