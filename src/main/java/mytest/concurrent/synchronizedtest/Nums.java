@@ -6,7 +6,7 @@ public class Nums {
     private int requestNumWithStaticSync=0;
     private int requestNumWithClassSync=0;
     private int requestNumWithBlockSync=0;
-    private int requestNumWithBlockClassSync=0;
+    private int requestNumWithStaticVar=0;
 
     public void requestNumInc() {
         requestNum ++;
@@ -27,8 +27,8 @@ public class Nums {
     public void requestNumWithStaticBlockSyncInc() {
         requestNumWithBlockSync ++;
     }
-    public void requestNumWithStaticBlockClassSyncInc() {
-        requestNumWithBlockClassSync ++;
+    public void requestNumWithStaticVar() {
+        requestNumWithStaticVar ++;
     }
 
     public void printNum(){
@@ -37,6 +37,6 @@ public class Nums {
         System.out.println("requestNumWithStaticSync : "+requestNumWithStaticSync);
         System.out.println("requestNumWithClassSync : "+ requestNumWithClassSync);
         System.out.println("requestNumWithBlockSync : "+ requestNumWithBlockSync);
-        System.out.println("requestNumWithBlockClassSync : "+ requestNumWithBlockClassSync);
+        System.out.println("requestNumWithStaticVar : "+ requestNumWithStaticVar);
     }
 }

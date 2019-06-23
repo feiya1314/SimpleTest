@@ -3,6 +3,7 @@ package mytest.concurrent.synchronizedtest;
 public class RequestHandler {
 
     private static Nums nums;
+    private static Byte[] lock = new Byte[0];
 
     public RequestHandler(Nums nums) {
         this.nums = nums;
@@ -24,9 +25,9 @@ public class RequestHandler {
             nums.requestNumWithStaticBlockSyncInc();
         }
     }
-    public void requestNumWithStaticBlockClassSyncInc() {
+    public void requestNumWithStaticVar() {
         synchronized(RequestHandler.class) {
-            nums.requestNumWithStaticBlockClassSyncInc();
+            nums.requestNumWithStaticVar();
         }
     }
 
