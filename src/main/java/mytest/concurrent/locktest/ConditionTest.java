@@ -21,14 +21,14 @@ public class ConditionTest {
                     System.out.println(num.num);
                     num.num++;
                 }
-                reachThreeCondition.signal();
+                reachThreeCondition.signal();//此时reachThreeCondition 条件已经满足，通知等待reachThreeCondition条件的线程继续执行
             } finally {
                 lock.unlock();
             }
             lock.lock();
             try {
-                reachSixCondition.await();
-                System.out.println("线程A输出4-6");
+                reachSixCondition.await();//await时会释放锁，并阻塞在此,等到reachSixCondition 此条件满足时，使用signal 来取消等待，往下执行
+                System.out.println("线程A输出7-9");
                 for (int i = 0; i < 3; i++) {
                     System.out.println(num.num);
                     num.num++;
@@ -41,8 +41,8 @@ public class ConditionTest {
         Thread threadb =new Thread(()->{
             lock.lock();
             try {
-                if (num.num<3) {
-                    reachThreeCondition.await();
+                while (num.num<3) {   //使用while是因为接收到signal的时候，条件有可能不满足,本例即使使用if也是可以满足的，但是最好用while
+                    reachThreeCondition.await();//同样，等待reachThreeCondition 条件满足
                 }
 
             } catch (Exception e) {
@@ -51,7 +51,7 @@ public class ConditionTest {
             }
             lock.lock();
             try {
-                System.out.println("线程B输出7-9");
+                System.out.println("线程B输出4-6");
                 for (int i = 0; i < 3; i++) {
                     System.out.println(num.num);
                     num.num++;
