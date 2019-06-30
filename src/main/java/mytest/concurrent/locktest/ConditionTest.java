@@ -14,7 +14,7 @@ public class ConditionTest {
         final Num num = new Num();
 
         Thread tha = new Thread(() -> {
-            lock.lock();
+            lock.lock();//如果此线程lock成功，其他线程在lock时会阻塞
             try {
                 System.out.println("线程A输出1-3");
                 for (int i = 0; i < 3; i++) {
@@ -42,7 +42,7 @@ public class ConditionTest {
             lock.lock();
             try {
                 while (num.num<3) {   //使用while是因为接收到signal的时候，条件有可能不满足,本例即使使用if也是可以满足的，但是最好用while
-                    reachThreeCondition.await();//同样，等待reachThreeCondition 条件满足
+                    reachThreeCondition.await();//同样，等待reachThreeCondition 条件满足,会重新竞争锁，继续往下执行
                 }
 
             } catch (Exception e) {
