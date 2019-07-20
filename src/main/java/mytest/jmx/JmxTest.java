@@ -21,4 +21,5 @@ public class JmxTest {
             }
         }).start();
     }
+    /*java -cp SimpleTest-1.0-SNAPSHOT.jar -Dcom.sun.management.jmxremote.port=7199 -Dcom.sun.management.jmxremote.rmi.port=7199 -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.managemenjmxremote.authenticate=false mytest.jmx.JmxTest*/
 }

@@ -63,9 +63,15 @@ public class StatusTool {
             env.put("com.sun.jndi.rmi.factory.socket", rmiClientSocketFactory);
 
             jmxc = JMXConnectorFactory.connect(jmxUrl, env);
+            StatusNotifyListener notifyListener = new StatusNotifyListener();
+
             mbeanServerConn = jmxc.getMBeanServerConnection();
             ObjectName name = new ObjectName(ssObjName);
             appStatusMBeanProxy = JMX.newMBeanProxy(mbeanServerConn, name, AppStatusMBean.class);
+
+            jmxc.addConnectionNotificationListener(notifyListener,null,null);
+            appStatusMBeanProxy.addNotificationListener(notifyListener,null,null);
+
             switch (cmd){
                 case "getUserNum":
                     System.out.println(String.valueOf(appStatusMBeanProxy.getUserOnlineNum()));
@@ -87,4 +93,7 @@ public class StatusTool {
             System.out.println(e);
         }
     }
+    /*
+    java -cp SimpleTest-1.0-SNAPSHOT.jar -Dcom.sun.management.jmxremote.port=7199  -Dcom.sun.management.jmxremote.rmi.port=7199 -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.authenticate=false  mytest.jmx.StatusTool host 192.168.3.8 cmd getUserNum
+    */
 }
