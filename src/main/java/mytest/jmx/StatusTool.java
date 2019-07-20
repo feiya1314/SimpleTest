@@ -12,6 +12,7 @@ import java.rmi.server.RMISocketFactory;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.locks.LockSupport;
 
 public class StatusTool {
     public static void main(String[] args) {
@@ -63,7 +64,7 @@ public class StatusTool {
             env.put("com.sun.jndi.rmi.factory.socket", rmiClientSocketFactory);
 
             jmxc = JMXConnectorFactory.connect(jmxUrl, env);
-            StatusNotifyListener notifyListener = new StatusNotifyListener();
+            StatusNotifyListener notifyListener = new StatusNotifyListener(Thread.currentThread());
 
             mbeanServerConn = jmxc.getMBeanServerConnection();
             ObjectName name = new ObjectName(ssObjName);
@@ -88,7 +89,8 @@ public class StatusTool {
                     System.out.println("afterSet : "+appStatusMBeanProxy.getThreadPoolSize());
                     break;
             }
-
+            LockSupport.park();
+            //Thread.sleep(20000);//此处休眠20秒，为了等服务端回调 StatusNotifyListener,可以用另一种方式，等回调后通知此处
         }catch (Exception e){
             System.out.println(e);
         }
