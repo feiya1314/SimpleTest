@@ -22,7 +22,7 @@ public class NumIncrease implements Runnable{
     }
 
     void getResult (){
-        System.out.println("num : "+num);
+        System.out.println("volatile num : "+num);
         System.out.println("atomicNum : "+atomicNum.get());
     }
 }
