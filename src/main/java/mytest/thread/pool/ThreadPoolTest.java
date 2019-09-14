@@ -6,6 +6,7 @@ public class ThreadPoolTest {
     public static void main(String[] args) {
 //        ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(1,);
         new ForkJoinPoolTest().run();
+        new MakeMoneyTest().run();
 
         //ExecutorService service = Executors.newCachedThreadPool();
 
