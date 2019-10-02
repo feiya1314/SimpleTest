@@ -9,14 +9,19 @@ public class SynchronizedTest {
         RequestHandler handler1 = new RequestHandler(nums);
         RequestHandler handler2 = new RequestHandler(nums);
         CountDownLatch countDownLatch = new CountDownLatch(10);
-        Runnable counter1 = new Counter(10000,handler1,countDownLatch);
-        Runnable counter2 = new Counter(10000,handler2,countDownLatch);
+        Counter counter1 = new Counter(10000,handler1,countDownLatch);
+        Counter counter2 = new Counter(10000,handler2,countDownLatch);
+        counter1.setAwait(true);
 
         for (int i = 0; i <5 ; i++) {
-            new Thread(counter1).start();
+            Thread rt = new Thread(counter1);
+            rt.setName("my thread count 1 - "+i);
+            rt.start();
         }
         for (int i = 0; i <5 ; i++) {
-            new Thread(counter2).start();
+            Thread rt = new Thread(counter2);
+            rt.setName("my thread count 2 - "+i);
+            rt.start();
         }
         try {
             countDownLatch.await();

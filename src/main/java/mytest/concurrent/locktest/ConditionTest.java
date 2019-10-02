@@ -14,8 +14,10 @@ public class ConditionTest {
         final Num num = new Num();
 
         Thread tha = new Thread(() -> {
+            //lock.lockInterruptibly();
             lock.lock();//如果此线程lock成功，其他线程在lock时会阻塞
             try {
+                //lock.wait();
                 System.out.println("线程A输出1-3");
                 for (int i = 0; i < 3; i++) {
                     System.out.println(num.num);
@@ -33,8 +35,8 @@ public class ConditionTest {
                     System.out.println(num.num);
                     num.num++;
                 }
-            } catch (Exception e) {
-            } finally {
+            }catch (InterruptedException e) {
+            }finally {
                 lock.unlock();
             }
         });
