@@ -1,0 +1,29 @@
+上述方法会返回从 Channel 中读入到 Buffer 的数据大小。
+
+提取 Buffer 中的值
+前面介绍了写操作，每写入一个值，position 的值都需要加 1，所以 position 最后会指向最后一次写入的位置的后面一个，如果 Buffer 写满了，那么 position 等于 capacity（position 从 0 开始）。
+
+如果要读 Buffer 中的值，需要切换模式，从写入模式切换到读出模式。注意，通常在说 NIO 的读操作的时候，我们说的是从 Channel 中读数据到 Buffer 中，对应的是对 Buffer 的写入操作，初学者需要理清楚这个。
+
+调用 Buffer 的 flip() 方法，可以从写入模式切换到读取模式。其实这个方法也就是设置了一下 position 和 limit 值罢了。
+
+public final Buffer flip() {
+limit = position; // 将 limit 设置为实际写入的数据数量
+position = 0; // 重置 position 为 0
+mark = -1; // mark 之后再说
+return this;
+}
+对应写入操作的一系列 put 方法，读操作提供了一系列的 get 方法：
+
+// 根据 position 来获取数据
+public abstract byte get();
+// 获取指定位置的数据
+public abstract byte get(int index);
+// 将 Buffer 中的数据写入到数组中
+public ByteBuffer get(byte[] dst)
+附一个经常使用的方法：
+
+new String(buffer.array()).trim();
+当然了，除了将数据从 Buffer 取出来使用，更常见的操作是将我们写入的数据传输到 Channel 中，如通过 FileChannel 将数据写入到文件中，通过 SocketChannel 将数据写入网络发送到远程机器等。对应的，这种操作，我们称之为写操作。
+
+int num = channel.write(buf);
