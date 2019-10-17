@@ -2,7 +2,9 @@ package mytest.io;
 
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -34,11 +36,15 @@ public class IMServer {
 
             try {
                 InputStream readClient = socket.getInputStream();
+                OutputStream outClient = socket.getOutputStream();
                 BufferedInputStream bufferedInputStream = new BufferedInputStream(readClient);
+                BufferedOutputStream bufferedoutClientStream = new BufferedOutputStream(outClient);
                 byte[] msg = new byte[256];
                 while (bufferedInputStream.read(msg) != -1) {
                     String s = new String(msg);
                     System.out.println(s);
+                    bufferedoutClientStream.write("msg from server\n".getBytes());
+                    bufferedoutClientStream.flush();
                 }
             } catch (Exception e) {
 

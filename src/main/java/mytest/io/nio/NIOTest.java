@@ -31,7 +31,7 @@ public class NIOTest {
      * 如果 B 的前四位为1，第五位为0，则B为一个非 ASCII 字符（该字符由多个字节表示）中的第一个字节，并且该字符由四个字节表示；
      * */
     public static void FileChannelTest() throws Exception{
-        int capacity = 256 ;
+        int capacity = 256 ; // 至少为4，因为UTF-8最大为4字节
         //ServerSocketChannel socketChannel =  new ServerS
 
         Charset charset = StandardCharsets.UTF_8;
@@ -49,14 +49,16 @@ public class NIOTest {
             out :
             for (idx = byteBuffer.position()-1; idx >= 0; idx--) {
                 b = byteBuffer.get(idx);
-
-                if ((b & 0xff) >> 7 == 0) {  // 0xxxxxxx
+                // 判断是不是一字节的 utf8字符，如果是说明可以正确解码，跳过继续从新开始
+                if ((b & 0B11111111) >> 7 == 0) {  // 0xxxxxxx
                     break;
                 }
+
                 if ((b& 0xff & 0xc0) == 0xc0) {   // 11xxxxxx，110xxxxx、1110xxxx、11110xxx
                     idx -= 1;
                     break;
                 }
+
                 if ((b & 0xff & 0x80) == 0x80) {
                     for (int i = 1; i < 4; i++) {
                         b = byteBuffer.get(idx - i);
