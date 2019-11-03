@@ -53,7 +53,7 @@ public class NIOTest {
             byteBuffer.limit(limitSize);  // 阻止读取跨界数据，不读取不完整的utf8字符，只读取limit内的buffer
             System.out.println(charset.decode(byteBuffer));
             byteBuffer.limit(limit);  // 恢复limit
-            byteBuffer.compact(); // 将未读的buffer数据（不完整的utf8字符）拷贝到Buffer起始处，将position设到最后一个未读元素正后面，下次往buffer写数据的时候不再从头开始写
+            byteBuffer.compact(); // 将未读的buffer数据（不完整的utf8字符,position 到 limit 之间的数据）拷贝到Buffer起始处，将position设到最后一个未读元素正后面，下次往buffer写数据的时候不再从头开始写
             //byteBuffer.clear();
         }
     }
