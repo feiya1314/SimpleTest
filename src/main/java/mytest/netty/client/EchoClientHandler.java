@@ -13,10 +13,11 @@ public class EchoClientHandler extends ChannelInboundHandlerAdapter {
      * Creates a client-side handler.
      */
     public EchoClientHandler() {
-        firstMessage = Unpooled.buffer(EchoClient.SIZE);
-        for (int i = 0; i < firstMessage.capacity(); i ++) {
+        firstMessage = Unpooled.buffer(128);
+        firstMessage.writeBytes("hello word".getBytes());
+        /*for (int i = 0; i < firstMessage.capacity(); i ++) {
             firstMessage.writeByte((byte) i);
-        }
+        }*/
     }
 
     @Override
@@ -26,7 +27,16 @@ public class EchoClientHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
-        ctx.write(msg);
+        byte[] bytes;
+        if(msg instanceof ByteBuf){
+            ByteBuf byteBuf = (ByteBuf) msg;
+            bytes = new byte[byteBuf.capacity()];
+            byteBuf.getBytes(0,bytes);
+            System.out.println("client rec : "+new String(bytes));
+        }
+        ctx.channel().close();
+        ctx.close();
+        //ctx.write(msg);
     }
 
     @Override

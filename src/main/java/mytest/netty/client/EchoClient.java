@@ -26,6 +26,7 @@ public final class EchoClient {
             sslCtx = null;
         }
 
+
         // Configure the client.
         EventLoopGroup group = new NioEventLoopGroup();
         try {
@@ -37,9 +38,9 @@ public final class EchoClient {
                         @Override
                         public void initChannel(SocketChannel ch) throws Exception {
                             ChannelPipeline p = ch.pipeline();
-                            if (sslCtx != null) {
+                            /*if (sslCtx != null) {
                                 p.addLast(sslCtx.newHandler(ch.alloc(), HOST, PORT));
-                            }
+                            }*/
                             //p.addLast(new LoggingHandler(LogLevel.INFO));
                             p.addLast(new EchoClientHandler());
                         }
