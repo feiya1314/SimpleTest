@@ -18,9 +18,17 @@ public class CompletableFutureTest {
         System.out.println();
         System.out.println();
 
-        System.out.println("异步泡面");
+        System.out.println("异步泡面1");
         start = System.currentTimeMillis();
-        CompletableFutureTest.noodlesAsync();
+        CompletableFutureTest.noodlesAsyncOne();
+        System.out.println("耗时 ： " + (System.currentTimeMillis() - start));
+
+        System.out.println();
+        System.out.println();
+
+        System.out.println("异步泡面2");
+        start = System.currentTimeMillis();
+        CompletableFutureTest.noodlesAsyncTwo();
         System.out.println("耗时 ： " + (System.currentTimeMillis() - start));
 
     }
@@ -38,7 +46,7 @@ public class CompletableFutureTest {
         System.out.println(instantNoodles.getNoodles());
     }
 
-    public static void noodlesAsync() throws Exception {
+    public static void noodlesAsyncOne() throws Exception {
         //System.out.println("主线程 ： " + Thread.currentThread().getName());
         CompletableFuture<Water> waterFuture = CompletableFuture.supplyAsync(() -> {
             System.out.println("烧水线程 ： " + Thread.currentThread().getName());
@@ -69,17 +77,38 @@ public class CompletableFutureTest {
             return instantNoodles;
         });
 
-        /*CompletableFuture<InstantNoodles> noodlesFuture = waterFuture.thenComposeAsync(water -> CompletableFuture.supplyAsync(() -> {
+        InstantNoodles noodles = noodlesFuture.get();
+
+        System.out.println("泡面好了");
+        System.out.println(noodles.getNoodles());
+    }
+
+    public static void noodlesAsyncTwo() throws Exception {
+        CompletableFuture<Water> waterFuture = CompletableFuture.supplyAsync(() -> {
+            System.out.println("烧水线程 ： " + Thread.currentThread().getName());
+            Water water = new Water();
+            water.heating();
+            return water;
+        }).whenComplete((w, e) -> {
+            //System.out.println("whenComplete线程 ： " + Thread.currentThread().getName());
+            System.out.println("水煮好了，温度" + w.getTemperature());
+        });
+
+        /*CompletableFuture<InstantNoodles> noodlesFuture = */
+
+        CompletableFuture<InstantNoodles> noodlesFuture = waterFuture.thenCombine(CompletableFuture.supplyAsync(() -> {
             InstantNoodles instantNoodles = new InstantNoodles();
             instantNoodles.prepare();
+            return instantNoodles;
+        }), (w, n) -> {
             System.out.println("获取开水");
-            Optional<String> waterStr = Optional.ofNullable(water.getWater());
+            Optional<String> waterStr = Optional.ofNullable(w.getWater());
             waterStr.ifPresent((wa) -> {
                 System.out.println("倒开水 water : " + wa);
-                instantNoodles.cook(wa);
+                n.cook(wa);
             });
-            return instantNoodles;
-        }));*/
+            return n;
+        });
 
         InstantNoodles noodles = noodlesFuture.get();
 
