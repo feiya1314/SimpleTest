@@ -9,4 +9,7 @@ public interface ESService {
     CompletableFuture<Result> createIndexAsync();
 
     GetResult matchAll();
+    GetResult boolQuery();
+
+
 }

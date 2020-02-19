@@ -1,10 +1,15 @@
 package mytest.es;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,7 +24,17 @@ public class DefaultESService implements ESService {
     }
 
     @Override
-    public Result createIndex(String indexName, Map<String,Object> mappings, IndexOptions options) {
+    public GetResult boolQuery() {
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery();
+        queryBuilder.must(QueryBuilders.termQuery("username","jack"));
+        queryBuilder.filter(QueryBuilders.termQuery("message","hello"));
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        return null;
+    }
+
+    @Override
+    public Result createIndex(String indexName, Map<String, Object> mappings, IndexOptions options) {
         Optional<IndexOptions> indexOptions = Optional.ofNullable(options);
         options = indexOptions.orElse(new IndexOptions());
 
@@ -60,6 +75,16 @@ public class DefaultESService implements ESService {
 
     @Override
     public GetResult matchAll() {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = null;
+        try {
+            searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return null;
     }
 }
