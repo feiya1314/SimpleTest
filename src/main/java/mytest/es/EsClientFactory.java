@@ -1,6 +1,5 @@
 package mytest.es;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpHost;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
@@ -9,14 +8,16 @@ import org.apache.http.ssl.SSLContexts;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.sniff.*;
+import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
+import org.elasticsearch.client.sniff.NodesSniffer;
+import org.elasticsearch.client.sniff.SniffOnFailureListener;
+import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 
 import javax.net.ssl.SSLContext;
-import javax.rmi.CORBA.Util;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -26,7 +27,11 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.file.Paths;
-import java.security.*;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.List;
@@ -112,7 +117,7 @@ public class EsClientFactory {
 
         sniffer = Sniffer.builder(restHighLevelClient.getLowLevelClient()).setSniffIntervalMillis(snifferInternalMillis)
                 .setSniffAfterFailureDelayMillis(sniffAfterFailureDelayMillis)
-                .setHostsSniffer(getHostSniffer(restHighLevelClient)).build();
+                .setNodesSniffer(getHostSniffer(restHighLevelClient)).build();
 
         sniffOnFailureListener.setSniffer(sniffer);
     }
@@ -155,11 +160,8 @@ public class EsClientFactory {
         }
     }
 
-    private HostsSniffer getHostSniffer(RestHighLevelClient restHighLevelClient) {
-        ElasticsearchHostsSniffer hostsSniffer = null;
-        if (keyStore != null) {
-            hostsSniffer = new ElasticsearchHostsSniffer(restHighLevelClient.getLowLevelClient(), sniffRequestTimeoutMillis, ElasticsearchHostsSniffer.Scheme.HTTPS);
-        }
+    private NodesSniffer getHostSniffer(RestHighLevelClient restHighLevelClient) {
+        NodesSniffer hostsSniffer = new ElasticsearchNodesSniffer(restHighLevelClient.getLowLevelClient(), sniffRequestTimeoutMillis, ElasticsearchNodesSniffer.Scheme.HTTPS);
         return hostsSniffer;
     }
 
