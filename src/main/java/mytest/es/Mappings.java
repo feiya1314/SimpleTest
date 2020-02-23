@@ -14,10 +14,8 @@ public class Mappings {
     private Map<String, Property> properties = new HashMap<>();
 
     public Property property(String propertyName) {
-        Property property = new Property(propertyName);
-        properties.put(propertyName, property);
-
-        return property;
+        //return properties.computeIfAbsent(propertyName, s -> new Property(s));
+        return properties.computeIfAbsent(propertyName, Property::new);
     }
 
     public Map<String, Object> build() {

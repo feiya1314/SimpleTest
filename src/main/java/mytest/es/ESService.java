@@ -10,6 +10,7 @@ public interface ESService {
 
     GetResult matchAll();
     GetResult boolQuery();
+    GetResult constantScoreQuery(float boost);
     GetResult matchQuery();
 
 

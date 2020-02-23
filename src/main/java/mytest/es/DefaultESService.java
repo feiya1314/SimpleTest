@@ -9,6 +9,7 @@ import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -28,8 +29,8 @@ public class DefaultESService implements ESService {
 
     @Override
     public GetResult matchQuery() {
-
-        MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("fieldname","jack");
+        //QueryBuilders.
+        MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery("fieldname", "jack");
         matchQueryBuilder.analyzer("search_analyzer");
         matchQueryBuilder.operator(Operator.AND).fuzziness(Fuzziness.AUTO);
         SearchRequest searchRequest = new SearchRequest();
@@ -48,12 +49,12 @@ public class DefaultESService implements ESService {
     @Override
     public GetResult boolQuery() {
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery();
-        queryBuilder.must(QueryBuilders.termQuery("username","jack"));
-        queryBuilder.filter(QueryBuilders.termQuery("message","hello"));
+        queryBuilder.must(QueryBuilders.termQuery("username", "jack"));
+        queryBuilder.filter(QueryBuilders.termQuery("message", "hello"));
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(queryBuilder);
-                searchRequest.source(searchSourceBuilder);
+        searchRequest.source(searchSourceBuilder);
         SearchResponse searchResponse = null;
         try {
             searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
@@ -63,6 +64,18 @@ public class DefaultESService implements ESService {
         return null;
     }
 
+    @Override
+    public GetResult constantScoreQuery(float boost) {
+        ConstantScoreQueryBuilder scoreQueryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("test","testvalue"));
+        scoreQueryBuilder.boost(boost);
+        String qu = scoreQueryBuilder.toString();
+        System.out.println(qu);
+        return null;
+    }
+
+    public static void main(String[] args) {
+        new DefaultESService(null).constantScoreQuery(2.0f);
+    }
     @Override
     public Result createIndex(String indexName, Map<String, Object> mappings, IndexOptions options) {
         Optional<IndexOptions> indexOptions = Optional.ofNullable(options);
