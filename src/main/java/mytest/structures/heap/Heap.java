@@ -36,7 +36,7 @@ public class Heap {
                 son++;
             }
 
-            if (arr[son] < fVal) {  // 不能使用 arr[father] 因为 father 会改变
+            if (arr[son] < fVal) {  // 不能使用 arr[father] 因为 father 会改变, 而且是为了给 fVal 找正确位置
                 arr[father] = arr[son];
                 father = son;
             } else {

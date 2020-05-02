@@ -1,5 +1,6 @@
 package mytest.algorithm.sort;
 
+import mytest.algorithm.Util;
 import mytest.structures.heap.Heap;
 
 public class HeapSort {
@@ -22,20 +23,13 @@ public class HeapSort {
         }
     }
 
-    public static void print(int[] arr) {
-        StringBuilder stringBuilder = new StringBuilder();
-        for (int value : arr) {
-            stringBuilder.append(value).append(",");
-        }
-        System.out.println(stringBuilder.toString());
-    }
 
     public static void main(String[] args) {
         int[] arr = new int[]{5, 2, 6, 0, 3, 9, 1, 7, 4, 8, 11, 23, 7, 12};
-        print(arr);
+        Util.print(arr);
         sort(arr);
-        print(arr);
+        Util.print(arr);
         sort(arr, false);
-        print(arr);
+        Util.print(arr);
     }
 }
