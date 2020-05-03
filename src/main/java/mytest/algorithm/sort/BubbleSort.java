@@ -7,8 +7,10 @@ import static mytest.algorithm.Util.swap;
 public class BubbleSort {
     public static void sort(int[] arr) {
         // 一次遍历后是不是有交换，如果没有交换说明已经排序完成，没必要再继续了
-        boolean swapped = false;
+
         for (int i = arr.length - 1; i > 0; i--) {
+            // 每次循环，重置
+            boolean swapped = false;
             for (int j = 0; j < i; j++) {
                 if (arr[j] > arr[j + 1]) {
                     swap(arr, j, j + 1);
@@ -19,8 +21,6 @@ public class BubbleSort {
             if (!swapped) {
                 break;
             }
-            // 本次有交换，重置
-            swapped = false;
         }
     }
 
