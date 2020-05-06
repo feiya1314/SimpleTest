@@ -2,6 +2,9 @@ package mytest.algorithm.sort;
 
 import mytest.algorithm.Util;
 
+/**
+ * 归并排序
+ */
 public class MergeSort {
     public static void main(String[] args) {
         int[] arr = new int[]{5, 2, 6, 0, 3, 9, 1, 7, 4, 8, 11, 23, 7, 12};
