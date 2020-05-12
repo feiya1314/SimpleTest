@@ -15,7 +15,7 @@ package mytest.algorithm.dp;
  */
 public class CoinChange {
     public static void main(String[] args) {
-        for (int i = 0; i <=27; i++) {
+        for (int i = 0; i <= 27; i++) {
             System.out.println(exec(i));
         }
     }
@@ -42,6 +42,6 @@ public class CoinChange {
             dp[i] = Math.min(Math.min(v1, v2), v3);
         }
         // 最终的结果就是下面
-        return dp[price];
+        return dp[price] == Integer.MAX_VALUE ? -1 : dp[price];
     }
 }
