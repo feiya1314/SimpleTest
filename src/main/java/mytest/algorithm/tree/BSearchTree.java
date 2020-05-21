@@ -5,6 +5,11 @@ public class BSearchTree<T extends Comparable<? super T>> implements Tree<T> {
 
     private int size;
 
+    public BSearchTree(BNode<T> root) {
+        this.root = root;
+        // size = cauSize(root)
+    }
+
     public BSearchTree() {
         this.root = null;
         this.size = 0;
