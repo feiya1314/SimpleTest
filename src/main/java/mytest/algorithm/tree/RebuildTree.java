@@ -32,6 +32,7 @@ public class RebuildTree {
         return helper(preOrder, 0, preOrder.length - 1, inOrder, 0, inOrder.length - 1);
     }
 
+    // 整体思想是 分别构建左子树和右子树
     private static BNode<Integer> helper(int[] preOrder, int pStart, int pEnd, int[] inOrder, int iStart, int iEnd) {
         if (pStart > pEnd || iStart > iEnd) {
             return null;
