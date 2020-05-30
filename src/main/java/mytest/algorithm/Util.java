@@ -21,6 +21,18 @@ public class Util {
         arr[y] = temp;
     }
 
+    public static void printArr(int[][] arr){
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < arr.length; i++) {
+            for (int j = 0; j < arr[0].length; j++) {
+                sb.append(arr[i][j]);
+                sb.append(" ");
+            }
+            sb.append(System.lineSeparator());
+        }
+        System.out.println(sb.toString());
+    }
+
     public static <T extends Comparable<?>> void printNode(BNode<T> root) {
         int maxLevel = maxLevel(root);
 
