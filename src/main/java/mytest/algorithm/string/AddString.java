@@ -18,9 +18,64 @@ package mytest.algorithm.string;
  * @description :
  */
 public class AddString {
-    public String addStrings(String num1, String num2) {
+    public static String addStrings(String num1, String num2) {
+        if ("0".equals(num1)) {
+            return num2;
+        } else if ("0".equals(num2)) {
+            return num1;
+        }
 
-        String result = "";
+        StringBuilder sb = new StringBuilder();
+        char[] num1Char = num1.toCharArray();
+        char[] num2Char = num2.toCharArray();
 
+        int num1CharLen = num1Char.length;
+        int num2CharLen = num2Char.length;
+
+        int maxLen = Math.max(num1CharLen, num2CharLen);
+        int i = num1CharLen - 1;
+        int j = num2CharLen - 1;
+
+        int add = 0;
+        for (int k = 0; k < maxLen; k++) {
+            int v1 = i < 0 ? 0 : Character.getNumericValue(num1Char[i]);
+            int v2 = j < 0 ? 0 : Character.getNumericValue(num2Char[j]);
+            int result = v1 + v2 + add;
+            sb.append(result % 10);
+            add = result >= 10 ? 1 : 0;
+            i--;
+            j--;
+        }
+        if (add > 0) {
+            sb.append(add);
+        }
+        sb.reverse();
+        return sb.toString();
+    }
+
+    public static String addStrings2(String num1, String num2) {
+        if ("0".equals(num1)) {
+            return num2;
+        } else if ("0".equals(num2)) {
+            return num1;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        char[] num1Char = num1.toCharArray();
+        char[] num2Char = num2.toCharArray();
+
+        int i = num1Char.length - 1;
+        int j = num2Char.length - 1;
+        int add = 0;
+        while (i >= 0 || j >= 0 || add > 0) {
+            int v1 = i < 0 ? 0 : Character.getNumericValue(num1Char[i]);
+            int v2 = j < 0 ? 0 : Character.getNumericValue(num2Char[j]);
+            int result = v1 + v2 + add;
+            sb.append(result % 10);
+            add = result / 10;
+            i--;
+            j--;
+        }
+        return sb.reverse().toString();
     }
 }
