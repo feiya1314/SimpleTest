@@ -23,8 +23,9 @@ package mytest.algorithm.string;
  */
 public class Multiply {
     public static void main(String[] args) {
-        System.out.println(multiply("2","3"));
+        System.out.println(multiply("456", "123"));
     }
+
     public static String multiply(String num1, String num2) {
         if ("0".equals(num1) || "0".equals(num2)) {
             return "0";
@@ -38,9 +39,10 @@ public class Multiply {
         for (int i = num1Char.length - 1; i >= 0; i--) {
             int v1 = Character.getNumericValue(num1Char[i]);
             StringBuilder sb = new StringBuilder();
-            for (int k = 0; k < num2Char.length; k++) {
+            for (int k = 0; k < num1Char.length - 1 - i; k++) {
                 sb.append("0");
             }
+
             int add = 0;
             for (int j = num2Char.length - 1; j >= 0; j--) {
                 int v2 = Character.getNumericValue(num2Char[j]);
