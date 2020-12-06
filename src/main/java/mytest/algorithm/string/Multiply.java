@@ -23,9 +23,16 @@ package mytest.algorithm.string;
  */
 public class Multiply {
     public static void main(String[] args) {
-        System.out.println(multiply("456", "123"));
+        System.out.println(multiply2("456", "123"));
     }
 
+    /**
+     * 每次计算num2 的每一位和num1的所有相乘，结果和前一次相加，
+     *
+     * @param num1
+     * @param num2
+     * @return
+     */
     public static String multiply(String num1, String num2) {
         if ("0".equals(num1) || "0".equals(num2)) {
             return "0";
@@ -57,5 +64,43 @@ public class Multiply {
         }
 
         return lastResult;
+    }
+
+    /**
+     * @param num1
+     * @param num2
+     * @return
+     */
+    public static String multiply2(String num1, String num2) {
+        if ("0".equals(num1) || "0".equals(num2)) {
+            return "0";
+        }
+        char[] num1Char = num1.toCharArray();
+        char[] num2Char = num2.toCharArray();
+
+        int[] result = new int[num1Char.length + num2Char.length];
+
+        // 每次乘得的结果位置刚好位于 result[i+j] 和 result[i+j+1]
+        for (int i = num1Char.length - 1; i >= 0; i--) {
+            int v1 = Character.getNumericValue(num1Char[i]);
+            for (int j = num2Char.length - 1; j >= 0; j--) {
+                int v2 = Character.getNumericValue(num2Char[j]);
+                int mu = v1 * v2;
+                int temp1 = mu % 10 + result[i + j + 1];
+                result[i + j + 1] = temp1 % 10;
+                result[i + j] = mu / 10 + temp1 / 10 + result[i + j];
+            }
+        }
+
+        int index = 0;
+        while (result[index] == 0) {
+            index++;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (; index < result.length; index++) {
+            sb.append(result[index]);
+        }
+
+        return sb.toString();
     }
 }

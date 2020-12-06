@@ -41,6 +41,22 @@ public class WordChain {
 
     // 优化，使用双向队列,从头尾开始遍历，相遇时，把两个走的长度相加
     public int ladderLength2(String beginWord, String endWord, List<String> wordList) {
+        if (wordList.isEmpty() || !wordList.contains(endWord)) {
+            return 0;
+        }
+        Queue<String> head = new ArrayDeque<>();
+        Queue<String> tail = new ArrayDeque<>();
+
+        Set<String> visited = new HashSet<>();
+        visited.add(beginWord);
+        visited.add(endWord);
+        head.offer(beginWord);
+        tail.offer(endWord);
+        int count = 0;
+        while (!head.isEmpty()&&!tail.isEmpty()){
+
+        }
+
         return 0;
     }
 

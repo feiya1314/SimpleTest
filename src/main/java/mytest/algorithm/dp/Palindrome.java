@@ -73,6 +73,7 @@ public class Palindrome {
     }
 
     // 中心扩散法  遍历每一个索引，以这个索引为中心，利用“回文串”中心对称的特点，往两边扩散，看最多能扩散多远。
+    // 时间复杂度：O(N^{2}） 空间复杂度：O(1)，
     public static String find2(String ori) {
         if (ori.length() < 2) {
             return ori;
