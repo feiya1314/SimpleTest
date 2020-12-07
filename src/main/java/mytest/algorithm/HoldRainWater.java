@@ -35,8 +35,8 @@ public class HoldRainWater {
         for (int i = 1, j = arr.length - 2; i <= j; ) {
             // 左边最大值 小于右边最大值，计算左边的 i 位置的蓄水量
             if (leftMax < rightMax) {
-                // i 位置比左边最大值还大，此时是无法蓄水的，替换leftMax，否则可以蓄水，蓄水量为 leftMax - arr[i]
-                if (arr[i] > leftMax) {
+                // i 位置比左边最大值还大或者相同，此时是无法蓄水的，替换leftMax，否则可以蓄水，蓄水量为 leftMax - arr[i]
+                if (arr[i] >= leftMax) {
                     leftMax = arr[i];
                 } else {
                     total += (leftMax - arr[i]);

@@ -12,7 +12,10 @@ public class HeapSort {
         int length = arr.length;
         if (bigTopHeap) {
             for (int i = length - 1; i > 0; i--) {
+                // 调整大顶堆，使最大值放到 0 坐标处
                 Heap.constructBigTopHeap(arr, i + 1);
+
+                // 把最大值交换到末尾
                 Heap.swap(arr, 0, i);
             }
             return;
