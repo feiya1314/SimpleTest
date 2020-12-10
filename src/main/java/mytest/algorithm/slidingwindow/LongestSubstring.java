@@ -66,4 +66,29 @@ public class LongestSubstring {
         }
         return max;
     }
+
+    public static int lengthOfLongestSubstring2(String s) {
+        if (s.length() < 2) {
+            return s.length();
+        }
+        Set<Character> set = new HashSet<>();
+        set.add(s.charAt(0));
+        int max = 1;
+        //记录左边界位置
+        int left = 0;
+        int i = 1;
+        while (i < s.length()) {
+            if (set.contains(s.charAt(i))) {
+                set.remove(s.charAt(left));
+                // 遇到重复的字符，更新max
+                max = Math.max(max, i - left);
+                left++;
+                continue;
+            }
+            set.add(s.charAt(i));
+            i++;
+        }
+        // 完全没有重复的字符，最大值是 i - left
+        return Math.max(max, i - left);
+    }
 }
