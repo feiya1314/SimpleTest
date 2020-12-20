@@ -44,6 +44,7 @@ public class ValidBracket {
 
     }
 
+    /** 遇到的右括号必须要和栈顶的匹配，才是正确的*/
     public boolean isValid(String s) {
         Deque<Character> stack = new LinkedList<>();
         for (Character character : s.toCharArray()){
