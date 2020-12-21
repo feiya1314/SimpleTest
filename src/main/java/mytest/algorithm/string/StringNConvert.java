@@ -63,6 +63,7 @@ public class StringNConvert {
         for (int i = 1; i < s.length(); i++) {
             // curIndex 记录当前位于第几行
             sbl.get(curIndex).append(s.charAt(i));
+            // 处理完当前的字符后，计算下一次的字符所在的行的索引 curIndex
             int index = curIndex % maxIndex;
             // 每次 index == 0 时，说明到转折点了，每numRows转折一次，并且更新下次需要存储的行的位置curIndex
             // 如果是垂直向下的情况
