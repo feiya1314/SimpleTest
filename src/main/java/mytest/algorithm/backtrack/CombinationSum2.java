@@ -40,6 +40,7 @@ import java.util.List;
 public class CombinationSum2 {
     private List<List<Integer>> result = new ArrayList<>();
 
+    // 整体思路，先排序，然后取子集，并计算track和，循环时跳过重复项
     public List<List<Integer>> combinationSum2(int[] candidates, int target) {
         LinkedList<Integer> track = new LinkedList<>();
         Arrays.sort(candidates);
@@ -55,12 +56,18 @@ public class CombinationSum2 {
                 result.add(new ArrayList<>(track));
                 return;
             }
+            // 如果当前递归的总和已经超过target，那么就不必继续递归了，肯定不符合
             if (sum > target) {
                 return;
             }
         }
-
+        int pre = -1;
         for (int i = start; i < nums.length; i++) {
+            // 重复的项前面已经计算过，跳过
+            if (pre == nums[i]){
+                continue;
+            }
+            pre = nums[i];
             track.add(nums[i]);
             backward(nums, i + 1, target, track);
             track.removeLast();
