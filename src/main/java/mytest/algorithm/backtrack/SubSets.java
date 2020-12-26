@@ -9,7 +9,7 @@ import java.util.List;
  * 比如输入 nums = [1,2,3]，你的算法应输出 8 个子集，包含空集和本身，顺序可以不同：
  *
  * [ [],[1],[2],[3],[1,3],[2,3],[1,2],[1,2,3] ]
- *
+ *  https://leetcode-cn.com/problems/subsets/
  * @author : yufei
  * @date : 2020/12/24 10:23
  * @description :
@@ -30,9 +30,9 @@ public class SubSets {
     // 不包含空集
     private void backtrack(int[] nums, int start, LinkedList<Integer> track) {
         // 如果需要包含空集，可以把if条件去掉
-        if (track.size() > 0) {
-            result.add(new ArrayList<>(track));
-        }
+        //if (track.size() > 0) {
+        result.add(new ArrayList<>(track));
+        //}
         // 下面的判断也可以不用，到for循环的时候，start 自然超出num length
         //if (track.size()>nums.length){
         //return;
