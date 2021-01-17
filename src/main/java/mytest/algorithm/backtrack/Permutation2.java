@@ -57,7 +57,7 @@ public class Permutation2 {
         // pre记录前一个访问过的值，used记录递归时访问的位置，每次递归时，访问的值就记录为true，深层递归时跳过此项
         int pre = Integer.MIN_VALUE;
         for (int i = 0; i < nums.length; i++) {
-            if (pre == nums[i] || used[i]) {
+            if (pre == nums[i] || used[i]) { // 可以使用 if ((i>0 && nums[i-1] == nums[i]) || used[i]) 代替
                 continue;
             }
             track.add(nums[i]);
