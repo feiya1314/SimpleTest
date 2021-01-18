@@ -43,13 +43,11 @@ public class Subsets2 {
         result.add(new ArrayList<>(track));
 
         // pre记录已经处理过的数，重复了，后续不用处理，跳过
-        Integer pre = null;
         for (int i = start; i < nums.length; i++) {
-            if (pre != null && nums[i] == pre) {
+            if (i> start && nums[i] == nums[i-1]) {
                 continue;
             }
             track.add(nums[i]);
-            pre = nums[i];
             // 已经使用过的数字，在往下递归的时候就不再使用了
             backtrack(nums, i + 1, track);
             track.removeLast();
