@@ -1,4 +1,4 @@
-package mytest.algorithm.sort;
+package mytest.algorithm.tree.heap;
 
 /**
  * 给定一个非空的整数数组，返回其中出现频率前 k 高的元素。
@@ -40,7 +40,7 @@ public class TopK {
         }
 
         // 最小堆优先队列，存放key，使用key对应的频率去比较
-        PriorityQueue<Integer> priorityQueue = new PriorityQueue<>(k, Comparator.comparingInt(fre::get));  // 同 (o1, o2) -> { return fre.get(o1) - fre.get(o2);
+        PriorityQueue<Integer> priorityQueue = new PriorityQueue<>(k, Comparator.comparingInt(fre::get));  // 同 (o1, o2) -> { return fre.get(o1) - fre.get(o2)};
 
         for (int i : fre.keySet()) {
             priorityQueue.offer(i);
