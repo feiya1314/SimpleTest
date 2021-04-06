@@ -11,6 +11,7 @@ package mytest.algorithm.linkedlist;
  */
 public class CycleLink {
     // 快慢指针，一个指针每次往右移动一次，一个指针每次右移两次，如果有环，一定会相遇
+    // 方法二 使用hash表，依次添加进hash表中，如果有重复的，则说明有环
     public boolean hasCycle(ListNode head) {
         if (head == null || head.next == null) {
             return false;
