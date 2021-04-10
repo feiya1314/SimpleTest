@@ -31,7 +31,7 @@ public class PalindromeList {
     // 也可以先找到中间节点，然后反转链表，进行比较，再恢复
     public boolean isPalindrome(ListNode head) {
         if (head == null) {
-            return false;
+            return true;
         }
 
         if (head.next == null) {

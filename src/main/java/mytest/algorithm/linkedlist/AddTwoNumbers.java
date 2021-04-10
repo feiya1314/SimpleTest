@@ -36,6 +36,12 @@ package mytest.algorithm.linkedlist;
  */
 public class AddTwoNumbers {
     public ListNode addTwoNumbers(ListNode l1, ListNode l2) {
+        if (l1 == null) {
+            return l2;
+        }
+        if (l2 == null) {
+            return l1;
+        }
         // 先预初始化一个节点用于存放结果，next 作为第一个数据头节点
         ListNode pre = new ListNode(0);
         int add = 0;
