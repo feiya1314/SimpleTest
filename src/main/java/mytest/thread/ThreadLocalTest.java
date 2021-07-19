@@ -12,7 +12,7 @@ public class ThreadLocalTest {
     public static void main(String[] args) {
         for (int i =0 ;i<5;i++){
             Thread thread = new Thread(()->{
-                ThreadLocalSession session = ThreadLocalSessionManager.getSession();
+                ThreadLocalSession session = ThreadLocalSessionManager.getInitSession();
                 System.out.println(Thread.currentThread().getName());
                 System.out.println(session.toString());
                 session.destroy();
@@ -23,6 +23,7 @@ public class ThreadLocalTest {
             thread.start();
             try {
                 Thread.sleep(500);
+                ThreadLocalSessionManager.close();
             }catch (Exception e){
 
             }

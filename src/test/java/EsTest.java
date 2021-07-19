@@ -27,7 +27,7 @@ public class EsTest extends BaseTest {
         RestHighLevelClient restHighLevelClient = esClientFactory.getRestHighLevelClient();
 
         GetIndexRequest getIndexRequest = new GetIndexRequest();
-        getIndexRequest.indices("indexbyhighlevel");
+      /*  getIndexRequest.indices("indexbyhighlevel");
         if (!restHighLevelClient.indices().exists(getIndexRequest)) {
             System.out.println("index indexbyhighlevel is not exist,now create it");
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("indexbyhighlevel");
@@ -38,7 +38,7 @@ public class EsTest extends BaseTest {
             System.out.println(createIndexResponse.index());
         } else {
             System.out.println("index indexbyhighlevel is exist");
-        }
+        }*/
 
     }
 
@@ -66,8 +66,8 @@ public class EsTest extends BaseTest {
         RestHighLevelClient restHighLevelClient = esClientFactory.getRestHighLevelClient();
         GetRequest getRequest = new GetRequest("indexcreatedbybuild");
         getRequest.type("usertype").id("2");
-        GetResponse getResponse = restHighLevelClient.get(getRequest);
-        System.out.println(getResponse.getSourceAsString());
+        //GetResponse getResponse = restHighLevelClient.get(getRequest);
+      //  System.out.println(getResponse.getSourceAsString());
     }
 
     @Test
@@ -85,14 +85,14 @@ public class EsTest extends BaseTest {
 
         searchRequest.source(searchSourceBuilder);
 
-        SearchResponse searchResponse = restHighLevelClient.search(searchRequest);
+       /* SearchResponse searchResponse = restHighLevelClient.search(searchRequest);
         SearchHits searchHits = searchResponse.getHits();
         System.out.println(searchHits.totalHits);
         Iterator<SearchHit> iterator =searchHits.iterator();
         while (iterator.hasNext()){
             SearchHit searchHit=iterator.next();
             System.out.println(searchHit.getSourceAsString());
-        }
+        }*/
     }
 
     @Test
@@ -118,7 +118,7 @@ public class EsTest extends BaseTest {
         SearchResponse searchResponse = client.prepareSearch("indexcreatedbybuild").setTypes("usertype").setSource(searchSourceBuilder).get();
 
         SearchHits searchHits = searchResponse.getHits();
-        System.out.println(searchHits.totalHits);
+       // System.out.println(searchHits.totalHits);
         Iterator<SearchHit> iterator =searchHits.iterator();
         while (iterator.hasNext()){
             SearchHit searchHit=iterator.next();
