@@ -20,7 +20,7 @@ public class BlockTask {
         return resource.getResource();
     }
 
-    private final boolean parkAndCheckInterrupt() {
+    private boolean parkAndCheckInterrupt() {
         LockSupport.park(this);
         return Thread.interrupted();
     }

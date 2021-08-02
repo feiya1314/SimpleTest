@@ -23,12 +23,13 @@ public class SmallestKNums {
 
     }
 
+    // 使用 最大优先级队列，先添加 k 个元素，以后每次把堆顶的最大值 poll 出去，最终剩下的全是最小的
     public int[] getLeastNumbers(int[] arr, int k) {
         if (k == 0 || arr.length == 0) {
             return new int[0];
         }
 
-        // PriorityQueue默认是一个小顶堆, 实现大根堆需要重写一下比较器。
+        // PriorityQueue默认是一个小顶堆, 实现大根堆需要重写一下比较器。k只是默认大小，如果offer超过k，会扩容
         PriorityQueue<Integer> priorityQueue = new PriorityQueue<>(k, (o1, o2) -> o2 - o1);
         for (int i = 0; i < k; i++) {
             priorityQueue.offer(arr[i]);

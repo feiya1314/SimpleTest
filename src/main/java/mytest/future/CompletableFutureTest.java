@@ -10,6 +10,8 @@ public class CompletableFutureTest {
         //https://www.ibm.com/developerworks/cn/java/j-cf-of-jdk8/index.html
         //Callable
         //FutureTask
+        retryTest();
+        System.exit(0);
         System.out.println("同步泡面");
         long start = System.currentTimeMillis();
         CompletableFutureTest.noodles();
@@ -94,6 +96,42 @@ public class CompletableFutureTest {
             System.out.println("水煮好了，温度" + w.getTemperature());
         });
 
+        /*CompletableFuture<InstantNoodles> noodlesFuture = */
+
+        CompletableFuture<InstantNoodles> noodlesFuture = waterFuture.thenCombine(CompletableFuture.supplyAsync(() -> {
+            InstantNoodles instantNoodles = new InstantNoodles();
+            instantNoodles.prepare();
+            return instantNoodles;
+        }), (w, n) -> {
+            System.out.println("获取开水");
+            Optional<String> waterStr = Optional.ofNullable(w.getWater());
+            waterStr.ifPresent((wa) -> {
+                System.out.println("倒开水 water : " + wa);
+                n.cook(wa);
+            });
+            return n;
+        });
+
+        InstantNoodles noodles = noodlesFuture.get();
+
+        System.out.println("泡面好了");
+        System.out.println(noodles.getNoodles());
+    }
+
+    public static void retryTest() throws ExecutionException, InterruptedException {
+        CompletableFuture<Water> waterFuture =null;
+
+        waterFuture =RetryUtil.retry(() -> CompletableFuture.supplyAsync(() -> {
+            System.out.println("retry thread "+Thread.currentThread().getName());
+            System.out.println("烧水线程 ： " + Thread.currentThread().getName());
+            Water water = new Water();
+            water.heating();
+            return water;
+        }), 3).exceptionally(throwable -> {
+            System.out.println("exceptionally thread "+Thread.currentThread().getName());
+            System.out.println("烧水异常，重试3次失败，抛出异常");
+            throw new RuntimeException("error to heat water");
+        });
         /*CompletableFuture<InstantNoodles> noodlesFuture = */
 
         CompletableFuture<InstantNoodles> noodlesFuture = waterFuture.thenCombine(CompletableFuture.supplyAsync(() -> {
