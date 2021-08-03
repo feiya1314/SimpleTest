@@ -2,6 +2,10 @@ package mytest;
 
 import java.util.Scanner;
 import java.io.*;
+
+/**
+ * https://ac.nowcoder.com/acm/contest/5652#question
+ */
 public class NewcoderIO {
     public static void main(String[] args)throws Exception {
         //Scanner in = new Scanner(System.in);
