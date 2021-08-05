@@ -27,13 +27,17 @@ package mytest.algorithm.tree.heap;
  * 著作权归领扣网络所有。商业转载请联系官方授权，非商业转载请注明出处。
  */
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.PriorityQueue;
 
 public class TopK {
-    public int[] topKFrequent(int[] nums, int k) {
+    public static void main(String[] args) {
+        System.out.println(Arrays.toString(TopK.topKFrequent(new int[]{1, 1, 1, 2, 2, 3}, 2)));
+    }
+    public static int[] topKFrequent(int[] nums, int k) {
         Map<Integer, Integer> fre = new HashMap<>();
         for (int num : nums) {
             fre.put(num, fre.getOrDefault(num, 0) + 1);
