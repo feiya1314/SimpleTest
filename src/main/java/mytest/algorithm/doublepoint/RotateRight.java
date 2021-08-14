@@ -29,6 +29,36 @@ package mytest.algorithm.doublepoint;
  * @description :
  */
 public class RotateRight {
+    // 1、先计算链表长度 2、将链表成环 3、遍历到 len-k/len 次数后，到达新的尾节点，断开环
+    public ListNode rotateRight2(ListNode head, int k) {
+        if (k == 0 || head == null || head.next == null) {
+            return head;
+        }
+        int len = 1;
+        ListNode cur = head;
+        while (cur.next != null) {
+            cur = cur.next;
+            len++;
+        }
+        // 移动的次数，此实cur是在链表尾部
+        int num = len - k % len;
+        if (num == len) {
+            return head;
+        }
+        // 链表成环
+        cur.next = head;
+        // 移动num次 cur 到达新的链表的尾部，断开链表
+        while (num > 0) {
+            cur = cur.next;
+            num--;
+        }
+        // 不能使用 head = cur.next;
+        ListNode ret = cur.next;
+        cur.next = null;
+
+        return ret;
+    }
+
     // 1、双指针先找到倒数第k个节点，此时可以得到联表的长度
     // 2、如果链表长度>= k，说明不用重复循环移动
     // 3、如果链表长度<k，说明至少重复循环移动一次，最终的结果等同于移动 k % length 个位置
