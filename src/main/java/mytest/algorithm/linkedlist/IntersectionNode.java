@@ -29,6 +29,7 @@ public class IntersectionNode {
         }
         ListNode pA = headA;
         ListNode pB = headB;
+        // 如果不存在时，换过头指针后，最终两个指针会都为null，跳出循环
         while (pA != pB) {
             pA = pA == null ? headB : pA.next;
             pB = pB == null ? headA : pB.next;
