@@ -53,6 +53,11 @@ public class MinNumber {
 
         // 自定义排序规则 (x + y) < (y + x) 则 x < y
         // Comparator 接口 如果 表达式 (a1, a2)
+        // 需要比较的类只需实现 Comparable 接口即可，在 compareTo 中定义自己的比较规则
+        // 返回 0 表示当前对象与目标对象相等
+        // 返回正数表示当前对象比目标对象大
+        // 返回负数表示当前对象比目标对象小
+        // 32  < 3  (即323 < 332)
         Arrays.sort(numStr, (x, y) -> (x + y).compareTo(y + x));
 
         StringBuilder sb = new StringBuilder();
