@@ -10,6 +10,7 @@ package mytest.algorithm.string;
  * Example 1:
  * <p>
  * Input: s = "Hello World"
+ *
  * Output: 5
  * Example 2:
  * <p>
