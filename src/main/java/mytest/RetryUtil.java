@@ -4,6 +4,8 @@ package mytest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.Callable;
+
 /**
  * @author : feiya
  * @date : 2021/9/20
@@ -15,13 +17,13 @@ public class RetryUtil {
     /**
      * 重试方法
      *
-     * @param supplier   函数式接口，同Supplier ，只是可以抛出异常
+     * @param supplier   函数式接口，通过Callable call 方法返回一个结果，类似于Supplier， 只是可以抛出异常
      * @param retryCount 重试次数，supplier执行次数最大为 retryCount + 1
      * @param sleepTime  重试之前休眠多少毫秒
      * @param <R>        supplier获取的结果
      * @return RetryResult 重试的结果
      */
-    public static <R> RetryResult<R> retry(SupplierWithException<R> supplier, int retryCount, long sleepTime) {
+    public static <R> RetryResult<R> retry(Callable<R> supplier, int retryCount, long sleepTime) {
         RetryResult<R> result = new RetryResult<>();
         if (supplier == null) {
             result.setCode(RetryCode.SUCCESS.code);
@@ -31,7 +33,7 @@ public class RetryUtil {
         int retryTimes = 0;
         while (true) {
             try {
-                R data = supplier.get();
+                R data = supplier.call();
                 result.setData(data);
                 result.setSuccess(true);
                 result.setHasRetry(retryTimes > 0);
@@ -144,10 +146,5 @@ public class RetryUtil {
         public void setDesc(String desc) {
             this.desc = desc;
         }
-    }
-
-    @FunctionalInterface
-    public interface SupplierWithException<T> {
-        T get() throws Exception;
     }
 }
