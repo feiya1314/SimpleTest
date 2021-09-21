@@ -14,12 +14,12 @@ public class SimpleTest {
             Random random = new Random();
             while (times > 0) {
                 if (random.nextInt(3) == 1) {
-                    throw new Exception("测试");
+                    throw new RuntimeException("测试");
                 }
                 times--;
             }
             return 999L;
-        }, 3, 500L);
+        }, 2, 500L);
         if (result.isSuccess()) {
             System.out.println("success result data : " + result.getData() + " code : " + result.getCode() + "  retry times " + result.getRetryTimes());
         } else {
