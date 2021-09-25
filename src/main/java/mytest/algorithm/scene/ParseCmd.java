@@ -61,6 +61,7 @@ public class ParseCmd {
         for (int i = 1; i < count; i++) {
             int index = opIndex[i];
             // 当前最大有 i+1 行，例如当 i = 2时，前面最多有 2 行数据，index 能操作的行号最大为 2，当大于2时，行数肯定不够
+            // 当index 操作的行数大于目前 content的长度时，也是异常的情况
             if (index > i || index > content.size()) {
                 System.out.println("error");
                 return;
@@ -68,15 +69,14 @@ public class ParseCmd {
 
             if (op[i].equals("i")) {
                 content.add(index - 1, contentOri[i]);
-            }
-            if (op[i].equals("a")) {
+            } else if (op[i].equals("a")) {
                 content.add(index, contentOri[i]);
-            }
-            if (op[i].equals("r")) {
+            } else if (op[i].equals("r")) {
                 content.set(index - 1, contentOri[i]);
-            }
-            if (op[i].equals("d")) {
+            } else if (op[i].equals("d")) {
                 content.remove(index - 1);
+            } else {
+                System.out.println("error");
             }
         }
 
