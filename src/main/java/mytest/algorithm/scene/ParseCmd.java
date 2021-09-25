@@ -21,7 +21,8 @@ public class ParseCmd {
         out();
     }
 
-    //1 i first|1 a sec|2 r rep
+    //1 i first|1 i sec|2 r rep
+    // 1 i first|1 i sec|2 r rep|2 a thr|3 a four|4 d
     //first
     //rep
     public static void out() throws Exception {
@@ -31,11 +32,14 @@ public class ParseCmd {
 
         String[] lines = cmd.split("\\|");
         int count = lines.length;
+        // 每一行对应写入的字符串
         String[] contentOri = new String[count];
-        List<String> content = new ArrayList<>();
+        // 每个命令对应的操作的行号
         int[] opIndex = new int[count];
+        // 每个命令
         String[] op = new String[count];
-
+        // 结果存放
+        List<String> content = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             String[] parse = lines[i].split(" ");
             opIndex[i] = Integer.parseInt(parse[0]);
@@ -56,7 +60,8 @@ public class ParseCmd {
 
         for (int i = 1; i < count; i++) {
             int index = opIndex[i];
-            if (index > i + 1 || index > content.size()) {
+            // 当前最大有 i+1 行，例如当 i = 2时，前面最多有 2 行数据，index 能操作的行号最大为 2，当大于2时，行数肯定不够
+            if (index > i || index > content.size()) {
                 System.out.println("error");
                 return;
             }
