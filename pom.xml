@@ -9,7 +9,7 @@
     <packaging>jar</packaging>
     <version>1.0-SNAPSHOT</version>
     <properties>
-        <spring.version>4.3.18.RELEASE</spring.version>
+        <spring.version>5.3.19</spring.version>
         <es.version>7.4.2</es.version>
     </properties>
     <dependencies>
