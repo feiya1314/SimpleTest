@@ -24,6 +24,7 @@ proxy_on(){
 	status=$?
 	if [ $status = 1 ]; then
 		#echo -e "已开启代理"
+		notify-send  -i /home/feiya/clash/proxyon_64.png "系统代理" "系统代理开启中"
 		return 0
   fi
 	dbus-send --session --print-reply --dest=com.deepin.daemon.Network /com/deepin/daemon/Network com.deepin.daemon.Network.SetProxyMethod string:'manual' > /dev/null
@@ -39,6 +40,7 @@ proxy_off(){
   status=$?
   if [ $status = 2 ]; then
     #echo -e "已关闭代理"
+		notify-send  -i /home/feiya/clash/proxyoff_64.png "系统代理" "系统代理未开启"
     return 0
   fi
 	dbus-send --session --print-reply --dest=com.deepin.daemon.Network /com/deepin/daemon/Network com.deepin.daemon.Network.SetProxyMethod string:'none' > /dev/null
