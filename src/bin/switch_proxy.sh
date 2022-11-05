@@ -27,6 +27,7 @@ proxy_on(){
 		notify-send  -i /home/feiya/clash/proxyon_64.png "系统代理" "系统代理开启中"
 		return 0
   fi
+  # 也可以使用 gsettings set org.gnome.system.proxy mode 'manual'
 	dbus-send --session --print-reply --dest=com.deepin.daemon.Network /com/deepin/daemon/Network com.deepin.daemon.Network.SetProxyMethod string:'manual' > /dev/null
 	echo "已开启代理"
 }
