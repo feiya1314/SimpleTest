@@ -29,7 +29,7 @@ local host=""
 local pwd="${INCLUDE_PREFIX}%{$fg[cyan]%}%c%{$reset_color%}${INCLUDE_SUFFIX}"
 
 #PROMPT='${user}${host} ${pwd} $(git_prompt_info)${time} %{$reset_color%}%B»%b '
-PROMPT='${user}${pwd}$(git_prompt_info)${INCLUDE_PREFIX}%{$fg[white]%}'%D{"%m-%d %I:%M:%S"}%b'%{$reset_color%}${INCLUDE_SUFFIX}%{$reset_color%}%B »%b '
+PROMPT='${user}${pwd}$(git_prompt_info)${INCLUDE_PREFIX}%{$fg[white]%}'%D{"%m-%d %H:%M:%S"}%b'%{$reset_color%}${INCLUDE_SUFFIX}%{$reset_color%}%B »%b '
 
 # i would prefer 1 icon that shows the "most drastic" deviation from HEAD,
 # but lets see how this works out
