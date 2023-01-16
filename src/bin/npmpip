@@ -1,0 +1,40 @@
+pip3 config set global.index-url https://pypi.douban.com/simple/
+pip3 config set install.trusted-host https://pypi.douban.com
+
+
+
+// 安装 nodejs
+sudo apt-get install nodejs
+
+// 安装 npm
+sudo apt-get install npm
+
+// node 版本
+node -v
+10.8.2
+
+// n 模块是管理 nodejs 版本的
+sudo npm install n -g
+
+// 1. 安装稳定版 nodejs
+sudo n stable
+
+// nodejs 版本
+node -v
+14.17.6
+
+// 2. 安装最新版 nodejs
+sudo n latest
+
+// nodejs 版本
+node -v
+16.10.0
+
+npm 需要升级，可以使用：
+
+// 升级 npm
+sudo npm install -g npm
+
+// npm 版本
+npm -v
+7.24.1
