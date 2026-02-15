@@ -40,20 +40,92 @@ import java.util.List;
  * @description :
  */
 public class ThreeSum {
+    public static void main(String[] args) {
+        System.out.println(threeSum(new int[]{-4, -4 ,-1 ,1 ,1 ,2 ,2 ,5 ,8 ,10}));
+    }
     // 先固定首位，排序，然后后面两位双指针遍历
-    public List<List<Integer>> threeSum(int[] nums) {
+    // 由于题中说，不重复，利用排序避免重复答案，排序后，循环找后面两个值和当前位置的和为0的两个，后面两个值寻找时，
+    // 只需要找之和等于特定值的两个数（-num[i]），遍历时，如果暴力遍历，复杂度会比较高，
+    // 由于已经排序，可以从首尾处开始找，如果两数之和大于目标值，则尾指针前移，否则头指针后移。
+    // 由于有可能存在重复，1、最外层的遍历时，值相同的需要跳过 2、内层双指针遍历时，左指针或者右指针值相同的也是重复的需要跳过
+    public static List<List<Integer>> threeSum(int[] nums) {
+        if (nums == null || nums.length < 3) {
+            return Collections.emptyList();
+        }
+        List<List<Integer>> results = new ArrayList<>();
+        Arrays.sort(nums);
+
+        // 只需要遍历到 -2 处，后面的内存循环已经不够双指针了，不够两个元素了
+        for (int i = 0; i < nums.length - 2; i++) {
+            // 另外如果当前值大于0，由于已经排序，表示后面的值肯定会大于0，是不可能有解的,直接结束
+            // 如果当前值和后面两值和大于0，后面只会更大，不可能有解==0了，也不用遍历，直接结束了
+            if (nums[i] > 0 || nums[i] + nums[i + 1] + nums[i + 2] > 0) {
+                break;
+            }
+            // 外层遍历时，和前值相同，表示重复 例如
+            // -4 -4 -1 1 1 2 2 5 8 10 第二的 -4  遍历的集合是 -1 1 1 2 2 5 8 10，
+            // 是属于第一个-4 的子集，所以可以跳过第二个 -4
+            if (i > 0 && (nums[i] == nums[i - 1])) {
+                continue;
+            }
+            // 当前值加最后两位值最大的值，也小于0，后续遍历肯定更小，不可能有值
+            if (nums[i] + nums[nums.length - 1] + nums[nums.length - 2] < 0) {
+                continue;
+            }
+            // 开始内层循环
+            int l = i + 1;
+            int r = nums.length - 1;
+            int target = -nums[i];
+            while (l < r) {
+                // 和左边上一个值相同，重复了，跳过，左指针后移
+                if (l > (i + 1) && nums[l] == nums[l - 1]) {
+                    l++;
+                    continue;
+                }
+                // 和右边上一个值相同，重复了，跳过，右指针前移
+                if (r < nums.length - 1 && nums[r] == nums[r + 1]) {
+                    r--;
+                    continue;
+                }
+
+                int sum = nums[l] + nums[r];
+                // 只相等，则找到解，左右指针移动，同时移动，因为只移动一个，另一个值的解必然重复了
+                if (sum == target) {
+                    List<Integer> result = new ArrayList<>();
+                    result.add(nums[i]);
+                    result.add(nums[l]);
+                    result.add(nums[r]);
+
+                    results.add(result);
+                    l++;
+                    r--;
+                    continue;
+                }
+                // 值小，左边指针移动，否则右边指针移动
+                if (sum < target) {
+                    l++;
+                } else {
+                    r--;
+                }
+            }
+        }
+        return results;
+    }
+
+    public List<List<Integer>> threeSum2(int[] nums) {
         if (nums == null || nums.length < 3) {
             return Collections.emptyList();
         }
         List<List<Integer>> result = new ArrayList<>();
         Arrays.sort(nums);
         for (int i = 0; i < nums.length - 2; i++) {
-            if (nums[i]> 0 || nums[i] + nums[i + 1] + nums[i + 2] > 0) {
+            if (nums[i] > 0 || nums[i] + nums[i + 1] + nums[i + 2] > 0) {
                 break;
             }
             if (i > 0 && nums[i] == nums[i - 1]) {
                 continue;
             }
+            // 当前值加最后两位值最大的值，也小于0，后续遍历肯定更小，不可能有值
             if (nums[i] + nums[nums.length - 1] + nums[nums.length - 2] < 0) {
                 continue;
             }

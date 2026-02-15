@@ -67,11 +67,14 @@ public class MedianSortedArrays {
 
     /*
         上面的方法优化  只需找到中位数的位置即可
+        数组的中间位置， length 如果是偶数 ，中间的两个 左一个是length/2-1  右一个是length/2
+        如果是偶数  中间一个是 length/2
      */
     public static double s2(int[] nums1, int[] nums2) {
         int num1Length = nums1.length;
         int num2Length = nums2.length;
 
+        // 中间位置的左侧，如果为偶数，则为中间两位的左边，基数则为中间位置的左边
         int midLeft = (num1Length + num2Length) / 2 - 1;
         int mid = midLeft + 1;
 
