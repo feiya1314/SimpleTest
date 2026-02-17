@@ -44,6 +44,77 @@ public class FourSum {
     // 如果和大于target，则右指针左移（有序数组，左指针右移，肯定也是大于target）
     // 如果和小于target，则左指针右移动
     // 双指针这里复杂度为n，而暴力解法，这个复杂度为n^2
+
+    public static List<List<Integer>> fourSum0(int[] nums, int target) {
+        if (nums == null || nums.length < 4) {
+            return Collections.emptyList();
+        }
+        List<List<Integer>> result = new ArrayList<>();
+        Arrays.sort(nums);
+        for (int i = 0; i < nums.length - 3; i++) {
+            // 重复
+            if (i > 0 && nums[i] == nums[i - 1]) {
+                continue;
+            }
+            // 最小的四个都比target大，没必要计算了
+            if ((long) nums[i] + nums[i + 1] + nums[i + 2] + nums[i + 3] > target) {
+                break;
+            }
+
+            // i开始加上最后的三个，仍然小于target，则中间的肯定也小于target，没必要继续
+            if ((long) nums[i] + nums[nums.length - 1] + nums[nums.length - 2] + nums[nums.length - 3] < target) {
+                continue;
+            }
+
+            for (int j = i + 1; j < nums.length - 2; j++) {
+                // 重复的跳过
+                if (j > i + 1 && nums[j] == nums[j - 1]) {
+                    continue;
+                }
+
+                // j开始和后面两个相加已经大于target了，也不用再计算了
+                if ((long) nums[i] + nums[j + 1] + nums[j + 2] + nums[j] > target) {
+                    break;
+                }
+
+                // i ,j 加上最后的2个，仍然小于target，则中间的肯定也小于target，没必要继续
+                if ((long) nums[i] + nums[j] + nums[nums.length - 1] + nums[nums.length - 2] < target) {
+                    continue;
+                }
+
+                int l = j + 1;
+                int r = nums.length - 1;
+                while (l < r) {
+                    // 左指针重复，跳过
+                    if (l > j + 1 && nums[l] == nums[l - 1]) {
+                        l++;
+                        continue;
+                    }
+                    // 右指针重复，跳过
+                    if (r < nums.length - 1 && nums[r] == nums[r + 1]) {
+                        r--;
+                        continue;
+                    }
+                    // 整型溢出
+                    long sum = (long) nums[i] + nums[j] + nums[l] + nums[r];
+                    if (sum == target) {
+                        result.add(Arrays.asList(nums[i], nums[j], nums[l], nums[r]));
+                        l++;
+                        r--;
+                        continue;
+                    }
+
+                    if (sum < target) {
+                        l++;
+                    } else {
+                        r--;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
     public List<List<Integer>> fourSum(int[] nums, int target) {
         if (nums == null || nums.length < 4) {
             return Collections.emptyList();

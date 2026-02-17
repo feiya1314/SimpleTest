@@ -52,11 +52,18 @@ public class SearchInsert {
         int left = 0;
         int right = nums.length - 1;
         while (left <= right) {
+            // 数组的中间位置， length 如果是偶数 ，中间的两个 左一个是length/2-1  右一个是length/2
+            // 如果是奇数  中间一个是 length/2
+            // 数组某个区间的中间的数的坐标，
+            // 偶数个，中间有两个，左一个是(r + l) / 2 = l + (r - l) / 2，右一个是(r + l) / 2 + 1
+            // 如果是奇数个，中间有一个，中间位置的坐标是 (r + l) / 2 =  l + (r - l) / 2
+            // !!! 遍历到最后 可能剩两个，l 和 r 紧挨着两个，或者 l和r是同一个位置 !!!
             int mid = left + (right - left) / 2;
             if (nums[mid] == target) {
                 return mid;
             }
 
+            // 遍历到最后 可能剩两个，l 和 r 紧挨着两个，或者 l和r是同一个位置，如果是两个，下一次循环后，l和r也会在同一位置
             if (nums[mid] < target) {
                 left = mid + 1;
             } else {
@@ -68,6 +75,12 @@ public class SearchInsert {
         // num[mid] > target 时，right 需要 -1，此时right 位置是小于 target 的，需要在right后面插入，也即是right + 1
         // num[mid] < target 时，left 需要加 +1.此时right还是小于 target 的，需要在right后面插入，也即是right + 1
         // right + 1的位置也是第一个大于target 的位置
+
+        // 最后一次比较，l 和 r 还有mid 一定位于同一位置，
+        // 但是下一次跳出循环，r-1或者l+1，导致r<l,
+        // 如果是mid 小于target，此时是l + 1，r = mid位置不动，target应该插入mid右侧，返回 r+1
+        // 如果是mid 大于target，此时是r - 1，l 位置不动，target应该插入mid的位置，即 mid 或者 l 或者 r+1
+        // 所以最终是 r + 1位置
         return right + 1;
     }
 }

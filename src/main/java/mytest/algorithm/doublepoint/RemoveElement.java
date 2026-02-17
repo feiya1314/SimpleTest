@@ -38,6 +38,25 @@ public class RemoveElement {
     // 一个指针记录可以写入的位置，遍历数组，遇到不等于val的指针右移，等于val的判断当前位置是否大于指针位置，
     // 大于则说明有前面剔除的位置，可以移动
     public int removeElement(int[] nums, int val) {
+        if (nums == null || nums.length == 0) {
+            return 0;
+        }
+
+        int l = 0;
+        int r = 0;
+        while (r < nums.length) {
+            if (nums[r] != val) {
+                // 不等的值放入当前l位置，l位置为最新的不为val的值的位置
+                nums[l] = nums[r];
+                l++;
+            }
+            // 如果右指针位置是val，则继续右移，找到不等的值
+            r++;
+        }
+        return l;
+    }
+
+    public int removeElement2(int[] nums, int val) {
         int nextIndex = -1;
         for (int i = 0; i < nums.length; i++) {
             if (nums[i] == val) {

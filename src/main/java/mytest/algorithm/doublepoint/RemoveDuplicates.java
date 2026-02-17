@@ -41,6 +41,29 @@ public class RemoveDuplicates {
         if (nums.length < 2) {
             return nums.length;
         }
+        int l = 0;
+        int r = 1;
+        // 左指针记录不重复的元素最后的位置
+        while (r < nums.length) {
+            // 如果值不同，则移动左指针，表示最新的和之前不同的值，把当前右指针的不同的值，保存到该位置
+            if (nums[r] != nums[l]) {
+                l++;
+                nums[l] = nums[r];
+            }
+            // 如果值相等，则右指针继续往下走，直到找到不同的
+            r++;
+        }
+
+        return l + 1;
+    }
+
+    public int removeDuplicates2(int[] nums) {
+        if (nums == null) {
+            return 0;
+        }
+        if (nums.length < 2) {
+            return nums.length;
+        }
         // 记录需要移动的位置
         int nextIndex = 0;
         for (int i = 1; i < nums.length; i++) {
