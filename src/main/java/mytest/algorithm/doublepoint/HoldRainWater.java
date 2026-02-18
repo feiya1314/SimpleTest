@@ -16,11 +16,48 @@ package mytest.algorithm.doublepoint;
 public class HoldRainWater {
     public static void main(String[] args) {
         int[] arr = new int[]{5, 2, 6, 12, 34, 3, 9, 1, 7, 4, 8, 11, 23, 7, 12};
-        System.out.println(trap(arr));
+        System.out.println(trap2(arr));
     }
 
-    public static int trap(int[] arr) {
-        if (arr.length <= 0) {
+    public int trap(int[] height) {
+        if (height == null || height.length <= 2) {
+            return 0;
+        }
+
+        // 注意到，一个位置是否能有雨水，和左侧和右侧的位置的最大值有关系，当左侧最大值小于右侧的最大值时，
+        // 该位置雨水是 max-height[i]
+        int leftM = height[0];
+        int rightM = height[height.length - 1];
+        int sum = 0;
+        int l = 1;
+        int r = height.length - 2;
+        // l 和 r相等时，该位置也需要计算是否有雨水
+        while (l <= r) {
+            // 左边的最大值小于右侧时，接的雨水和左侧的边界有关，从左侧移动，处理左侧的雨水
+            if (leftM < rightM) {
+                // 当前位置如果值小于左边界最大的值，说明这里同时小于两侧的值，能接到雨水
+                if (height[l] < leftM) {
+                    sum = sum + leftM - height[l];
+                } else {
+                    // 这里接不到雨水了，因为当前位置高于左侧最大值，需要更新
+                    leftM = height[l];
+                }
+                // 左侧继续移动处理
+                l++;
+            } else {
+                if (height[r] < rightM) {
+                    sum = sum + rightM - height[r];
+                } else {
+                    rightM = height[r];
+                }
+                r--;
+            }
+        }
+        return sum;
+    }
+
+    public static int trap2(int[] arr) {
+        if (arr.length == 0) {
             return 0;
         }
 
@@ -30,7 +67,8 @@ public class HoldRainWater {
 
         int total = 0;
 
-        // 双指针遍历，如果左边最大值小于右边最大值，则可以确定 该位置蓄水量和 leftMax 相关，因为右侧实际的最大值一定是 大于等于 rightMax ，
+        // 双指针遍历，如果左边最大值小于右边最大值，则可以确定 该位置蓄水量和 leftMax 相关，
+        // 因为右侧实际的最大值一定是 大于等于 rightMax ，
         // 处理左循环即可，否则处理右循环
         for (int i = 1, j = arr.length - 2; i <= j; ) {
             // 左边最大值 小于右边最大值，计算左边的 i 位置的蓄水量
