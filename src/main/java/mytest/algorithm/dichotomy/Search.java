@@ -1,5 +1,8 @@
 package mytest.algorithm.dichotomy;
 
+/**
+ * https://leetcode.cn/problems/search-in-rotated-sorted-array/description/
+ */
 public class Search {
     public int search(int[] nums, int target) {
         if (nums == null || nums.length == 0) {

@@ -54,10 +54,14 @@ public class Permutation2 {
             result.add(new ArrayList<>(track));
             return;
         }
-        // pre记录前一个访问过的值，used记录递归时访问的位置，每次递归时，访问的值就记录为true，深层递归时跳过此项
+        // pre记录同层的循环中前一个访问过的值，used记录递归时访问的位置，每次递归时，访问的值就记录为true，深层递归时跳过此项
         int pre = Integer.MIN_VALUE;
         for (int i = 0; i < nums.length; i++) {
-            if (pre == nums[i] || used[i]) { // 可以使用 if ((i>0 && nums[i-1] == nums[i]) || used[i]) 代替
+            // 不可以使用(i>0 && nums[i-1] == nums[i]) 代替 pre == nums[i]
+            // pre记录的是上一次同层中访问过的值，例如 1 1 2 中，第一层是 1 ，
+            // 第二次遍历时，第一个1已经used，这一层中跳过了，但是由于这一层没使用过1，所以第二个及后面位置仍可以使用1，
+            // 但是nums[i-1] == nums[i] 却时相同的，会跳过，导致 1 1 2这个结果被丢弃
+            if (pre == nums[i] || used[i]) {
                 continue;
             }
             track.add(nums[i]);
