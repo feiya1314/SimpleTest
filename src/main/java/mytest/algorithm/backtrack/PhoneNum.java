@@ -50,6 +50,7 @@ public class PhoneNum {
         // 每次递归下一层都是digits的下一个字符，例如234，每一层值要加一
         String digit = getCharMap().get(digits.charAt(start));
         // 遍历数字对应的字符串，这一层遍历完，例如 23，对应的先a 再b 再c，遍历a时，递归下一层对应3，遍历顺序 ad  ae af
+        // 由于每一层值是独立的，不需要剪枝
         for (int i = 0; i < digit.length(); i++) {
             track.add(digit.charAt(i));
             backtrack(digits, start + 1, result, track);
