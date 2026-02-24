@@ -35,9 +35,10 @@ public class SubSets {
         //}
         // 下面的判断也可以不用，到for循环的时候，start 自然超出num length
         //if (track.size()>nums.length){
-        //return;
+        //return;s
         //}
 
+        // 本质是组合，所以i 要剔除已经读取过的，每次递归下一层时，要从i+1处开始
         for (int i = start; i < nums.length; i++) {
             track.add(nums[i]);
             // 每次递归从下一个字符开始
