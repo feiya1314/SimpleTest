@@ -6,7 +6,8 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * /给你一个包含 n 个整数的数组 nums，判断 nums 中是否存在三个元素 a，b，c ，使得 a + b + c = 0 ？请你找出所有和为 0 且不重
+ * /给你一个包含 n 个整数的数组 nums，判断 nums 中是否存在三个元素 a，b，c ，使得 a + b + c = 0 ？请你找出所有和为 0
+ * 且不重
  * //复的三元组。
  * //
  * // 注意：答案中不可以包含重复的三元组。
@@ -41,14 +42,64 @@ import java.util.List;
  */
 public class ThreeSum {
     public static void main(String[] args) {
-        System.out.println(threeSum(new int[]{-4, -4 ,-1 ,1 ,1 ,2 ,2 ,5 ,8 ,10}));
+        System.out.println(threeSum(new int[] { -4, -4, -1, 1, 1, 2, 2, 5, 8, 10 }));
     }
+
+    public static List<List<Integer>> threeSum(int[] nums) {
+        if (nums == null || nums.length < 3) {
+            return Collections.emptyList();
+        }
+        List<List<Integer>> results = new ArrayList<>();
+        Arrays.sort(nums);
+        for (int i = 0; i < nums.length - 2; i++) {
+            // 当前值和上一个值重复了，跳过
+            if (i > 0 && (nums[i] == nums[i - 1])) {
+                continue;
+            }
+
+            // 后两个值双指针前后遍历，因为已经排序了，前后向中间遍历，加起来值等于 -nums[i];
+            int l = i + 1;
+            int r = nums.length - 1;
+            int target = -nums[i];
+            while (l < r) {
+                // 和左边上一个值相同，重复了，跳过，左指针后移，右指针保持不变
+                if (l > i + 1 && nums[l] == nums[l - 1]) {
+                    l++;
+                    continue;
+                }
+                // 和右边上一个值相同，重复了，跳过，右指针前移
+                if (r < nums.length - 1 && nums[r] == nums[r + 1]) {
+                    r--;
+                    continue;
+                }
+                int sum = nums[l] + nums[r];
+                if (sum == target) {
+                    results.add(Arrays.asList(nums[i], nums[l], nums[r]));
+                    l++;
+                    r--;
+                    continue;
+                }
+
+                if (sum < target) {
+                    l++;
+                } else {
+                    r--;
+                }
+
+            }
+
+        }
+
+        return results;
+
+    }
+
     // 先固定首位，排序，然后后面两位双指针遍历
     // 由于题中说，不重复，利用排序避免重复答案，排序后，循环找后面两个值和当前位置的和为0的两个，后面两个值寻找时，
     // 只需要找之和等于特定值的两个数（-num[i]），遍历时，如果暴力遍历，复杂度会比较高，
     // 由于已经排序，可以从首尾处开始找，如果两数之和大于目标值，则尾指针前移，否则头指针后移。
     // 由于有可能存在重复，1、最外层的遍历时，值相同的需要跳过 2、内层双指针遍历时，左指针或者右指针值相同的也是重复的需要跳过
-    public static List<List<Integer>> threeSum(int[] nums) {
+    public static List<List<Integer>> threeSum3(int[] nums) {
         if (nums == null || nums.length < 3) {
             return Collections.emptyList();
         }
@@ -63,7 +114,7 @@ public class ThreeSum {
                 break;
             }
             // 外层遍历时，和前值相同，表示重复 例如
-            // -4 -4 -1 1 1 2 2 5 8 10 第二的 -4  遍历的集合是 -1 1 1 2 2 5 8 10，
+            // -4 -4 -1 1 1 2 2 5 8 10 第二的 -4 遍历的集合是 -1 1 1 2 2 5 8 10，
             // 是属于第一个-4 的子集，所以可以跳过第二个 -4
             if (i > 0 && (nums[i] == nums[i - 1])) {
                 continue;
