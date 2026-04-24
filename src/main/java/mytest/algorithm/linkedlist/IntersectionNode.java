@@ -22,14 +22,17 @@ public class IntersectionNode {
 
     //方法1 hash表法，先把A节点都放入hash中，然后遍历b，如果bi在hash表中，则bi为相交节点
     // 方法2，双指针，同时遍历 ，当pa遍历完后，把pa指向 b头节点，当pb遍历到尾部时，将pb指向
-    // a头节点，继续遍历，直到有相同节点时，则为相交节点
+    // a头节点，继续遍历，直到有相同节点时，则为相交节点 
     public ListNode getIntersectionNode(ListNode headA, ListNode headB) {
         if (headA == null || headB == null) {
             return null;
         }
         ListNode pA = headA;
         ListNode pB = headB;
-        // 如果不存在时，换过头指针后，最终两个指针会都为null，跳出循环
+        // 如果不存在时，换过头指针后，最终两个指针会都为null，跳出循环  
+        // 主要思想是两个指针走的长度相同
+        // 如果有两个链表有交点，当两次遍历后，第一个相等的位置即为交点，
+        // 如果没有交点，两个指针都停在最后一位，两个指针走的路程是相同的
         while (pA != pB) {
             pA = pA == null ? headB : pA.next;
             pB = pB == null ? headA : pB.next;
