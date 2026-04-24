@@ -26,7 +26,7 @@ import java.util.Arrays;
  * 拼接起来的数字可能会有前导 0，最后结果不需要去掉前导 0
  * <p>
  * 来源：力扣（LeetCode）
- * 链接：https://leetcode-cn.com/problems/ba-shu-zu-pai-cheng-zui-xiao-de-shu-lcof
+ * 链接：https://leetcode.cn/problems/ba-shu-zu-pai-cheng-zui-xiao-de-shu-lcof/solutions/1053370/js-jian-zhi-offer-45-ba-shu-zu-pai-cheng-phf8/
  * 著作权归领扣网络所有。商业转载请联系官方授权，非商业转载请注明出处。
  *
  * @author : feiya
