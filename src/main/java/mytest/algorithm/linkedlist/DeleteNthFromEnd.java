@@ -21,6 +21,32 @@ package mytest.algorithm.linkedlist;
  * 著作权归领扣网络所有。商业转载请联系官方授权，非商业转载请注明出处。
  */
 public class DeleteNthFromEnd {
+    public ListNode removeNthFromEnd2(ListNode head, int n) {
+        if (head == null) {
+            return head;
+        }
+        // 添加一个虚拟节点，哑节点，处理恰好是删除 头节点的情况
+        ListNode tempHead = new ListNode(-1, head);
+        ListNode left = tempHead;
+        ListNode right = tempHead;
+        int index = 0;
+        // 遍历到最后一个节点就结束，这个时候，left恰好位于倒数 n+1 节点处 
+        while (right != null && right.next != null) {
+            if (index < n) {
+                right = right.next;
+                index++;
+                continue;
+            }
+            right = right.next;
+            left = left.next;
+        }
+        // 不是最后一个节点，倒数 0 个的时候不用删除
+        if (left.next != null) {
+            left.next = left.next.next;
+        }
+
+        return tempHead.next;
+    }
 
     // 先让一个指针右移n次，然后两个指针同时移动，直到结尾，left即为倒数第n个节点
     // 如果left 为头节点，则更新head，

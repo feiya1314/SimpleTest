@@ -28,4 +28,36 @@ public class CycleLink {
         }
         return false;
     }
+
+    public boolean hasCycle2(ListNode head) {
+        if (head == null || head.next == null) {
+            return false;
+        }
+        ListNode slow = head;
+        ListNode fast = head.next;
+        while (slow != fast) {
+            // 有环的话，不会出现 null
+            if (fast == null || fast.next == null) {
+                return false;
+            }
+            slow = slow.next;
+            fast = fast.next.next;
+        }
+        return true;
+    }
+
+    public boolean hasCycle3(ListNode head) {
+        ListNode slow = head;
+        ListNode fast = head;
+        // 有环的话，不会出现 null
+        while (fast != null && fast.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+            // 有环的话，快慢指针重合
+            if (slow == fast) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
