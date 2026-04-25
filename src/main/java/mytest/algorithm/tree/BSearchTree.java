@@ -1,5 +1,8 @@
 package mytest.algorithm.tree;
 
+import java.util.ArrayDeque;
+import java.util.Queue;
+
 public class BSearchTree<T extends Comparable<? super T>> implements Tree<T> {
     private BNode<T> root;
 
@@ -42,14 +45,15 @@ public class BSearchTree<T extends Comparable<? super T>> implements Tree<T> {
         return null;
     }
 
-    private void preOrder(BNode<T> node){
-        if (node == null){
-            return ;
+    private void preOrder(BNode<T> node) {
+        if (node == null) {
+            return;
         }
         System.out.println(node.data);
         preOrder(node.left);
         preOrder(node.right);
     }
+
     // 首先中序遍历左（右）子树，再访问根，最后中序遍历右（左）子树。
     @Override
     public String inOrder() {
@@ -57,14 +61,15 @@ public class BSearchTree<T extends Comparable<? super T>> implements Tree<T> {
         return null;
     }
 
-    private void inOrder(BNode<T> node){
-        if (node == null){
-            return ;
+    private void inOrder(BNode<T> node) {
+        if (node == null) {
+            return;
         }
         inOrder(node.left);
         System.out.println(node.data);
         inOrder(node.right);
     }
+
     // 首先后序遍历左（右）子树，再后序遍历右（左）子树，最后访问根。
     @Override
     public String postOrder() {
@@ -72,20 +77,40 @@ public class BSearchTree<T extends Comparable<? super T>> implements Tree<T> {
         return null;
     }
 
-    private void postOrder(BNode<T> node){
-        if (node == null){
-            return ;
+    private void postOrder(BNode<T> node) {
+        if (node == null) {
+            return;
         }
         postOrder(node.left);
         postOrder(node.right);
         System.out.println(node.data);
     }
+
     /**
      * 层次遍历
      */
     @Override
     public String levelOrder() {
+        Queue<BNode<T>> queue = new ArrayDeque<>();
+        queue.offer(root);
+        doLevelOrder(queue);
         return null;
+    }
+
+    public void doLevelOrder(Queue<BNode<T>> queue) {
+        while (!queue.isEmpty()) {
+            // 把当前的节点取出来读取,然后将左右节点入队,根据先入先出的原则,每次都是每一层的顺序入队
+            BNode<T> node = queue.poll();
+            System.out.println(node.data);
+            if (node.left != null) {
+                queue.offer(node.left);
+            }
+
+            if (node.right != null) {
+                queue.offer(node.right);
+            }
+        }
+        return;
     }
 
     // 最终一定是在 null 位置插入的
@@ -95,7 +120,7 @@ public class BSearchTree<T extends Comparable<? super T>> implements Tree<T> {
             throw new RuntimeException("data can\'Comparable be null !");
 
         insertNoneRecursion(data);
-        //root = insertRecursion(data, root);
+        // root = insertRecursion(data, root);
     }
 
     // 使用非递归插入
@@ -215,7 +240,7 @@ public class BSearchTree<T extends Comparable<? super T>> implements Tree<T> {
         }
 
         if (cur.left != null && cur.right != null) {
-            if (cur == root){
+            if (cur == root) {
                 // todo
             }
         }
