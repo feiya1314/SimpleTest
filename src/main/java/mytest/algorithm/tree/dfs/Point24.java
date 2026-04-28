@@ -1,11 +1,11 @@
 package mytest.algorithm.tree.dfs;
 
 
-import mytest.algorithm.TwoSum;
-
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.Stack;
+
+import mytest.algorithm.hash.TwoSum;
 
 /**
  * 你有 4 张写有 1 到 9 数字的牌。你需要判断是否能通过 *，/，+，-，(，) 的运算得到 24。

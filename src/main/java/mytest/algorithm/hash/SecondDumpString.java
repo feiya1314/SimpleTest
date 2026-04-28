@@ -1,4 +1,4 @@
-package mytest.algorithm;
+package mytest.algorithm.hash;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
