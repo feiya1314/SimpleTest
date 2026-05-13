@@ -91,4 +91,29 @@ public class LongestSubstring {
         // 完全没有重复的字符，最大值是 i - left
         return Math.max(max, i - left);
     }
+
+    public static int lengthOfLongestSubstring3(String s) {
+        if (s.length() < 2) {
+            return s.length();
+        }
+        Set<Character> set = new HashSet<>();
+        set.add(s.charAt(0));
+        int max = 1;
+        //记录左边界位置
+        int left = 0;
+        int i = 1;
+        while (i < s.length()) {
+            if (set.contains(s.charAt(i))) {
+                // 遇到重复的字符，更新max，当前的最大值就是set的长度
+                max = Math.max(max, set.size());
+                set.remove(s.charAt(left));
+                left++;
+                continue;
+            }
+            set.add(s.charAt(i));
+            i++;
+        }
+        // 完全没有重复的字符，当前的最大值就是set的长度
+        return Math.max(max, set.size());
+    }
 }
