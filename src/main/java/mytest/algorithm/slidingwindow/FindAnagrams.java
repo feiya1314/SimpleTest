@@ -5,6 +5,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * https://leetcode.cn/problems/find-all-anagrams-in-a-string/description/?envType=study-plan-v2&envId=top-100-liked
+ */
+
 public class FindAnagrams {
     public List<Integer> findAnagrams(String s, String p) {
         int sLen = s.length();
