@@ -489,6 +489,10 @@ master 生产环境代码或者可发布版本或者稳定状态的代码
 
 2、本地开发master分支，或者feature分支
 
+开发中，使用git rebase master，把master分支合到开发分支，解决冲突，要经常rebase，避免一次太多冲突
+
+合到本地master，推送fork仓
+
 3、push到fork仓，跑个人CICD
 
 4、MR到主仓master或者feature分支
