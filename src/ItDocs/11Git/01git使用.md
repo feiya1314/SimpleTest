@@ -334,7 +334,7 @@ A---B---C---D---E---F---G  (master, v2.1开发中)
 - 三方合并算法找共同祖先 C，比较 master（G 相对 C 的 diff）和 hotfix（I 相对 C 的 diff），合并这两组 diff
 - 结果代码内容 = G 的内容 + (H、I 相对 C 的 diff)
 - **本质上和 cherry-pick H、I 到 G 上得到的代码是一样的**，不会引入老代码
-- 冲突可能性也相同：H、I 改的代码行如果 D~G 也改过，两种方式都会冲突
+- 冲突可能性也相同：H、I 改的代码行如果 D\~G 也改过，两种方式都会冲突
   - merge：一次性出冲突，整体解决
   - cherry-pick：H 先冲突解决，再 I 冲突解决（逐个 commit 应用）
 
@@ -479,7 +479,25 @@ git push origin master
 
 举例：一个互联网公司新业务团队选 GitHub Flow，老牌金融软件公司选 Git Flow，谷歌这种超大规模代码库选 Trunk-Based。
 
-# 19. conventional commits理念是什么
+# 19. 当前的git开发流程
+
+master 生产环境代码或者可发布版本或者稳定状态的代码
+
+当前是稳定状态的代码
+
+1、fork仓
+
+2、本地开发master分支，或者feature分支
+
+3、push到fork仓，跑个人CICD
+
+4、MR到主仓master或者feature分支
+
+5、打包测试
+
+6、release打包，生成tag
+
+# 20. conventional commits理念是什么
 
 **Conventional Commits 是一种结构化的提交信息规范**，让提交信息既人可读、又机器可解析，用于自动生成 changelog 和语义化版本。
 
@@ -524,7 +542,7 @@ BREAKING CHANGE: 登录接口的响应字段从 token 改为 access_token
 - **提交历史可读**：一眼看出每个提交的性质和影响范围
 - **配合工具链**：commitizen、commitlint、semantic-release 一整套生态
 
-# 20. 特性开关模式是什么
+# 21. 特性开关模式是什么
 
 **特性开关（Feature Flag / Feature Toggle）是用配置开关控制功能是否对用户可见的模式**，让"代码合并"和"功能上线"解耦。
 
