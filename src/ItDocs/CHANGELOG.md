@@ -1,5 +1,19 @@
 # 更新日志
 
+- 2026-06-18: Redis 持久化机制主题新增第 6 题"AOF 重写是什么，重写过程是怎样的"，说明 AOF 重写基于当前内存最终数据生成新 AOF 文件而非读取旧 AOF 压缩，整理 BGREWRITEAOF 手动触发、auto-aof-rewrite-percentage/auto-aof-rewrite-min-size 自动触发条件、后台任务互斥、fork 子进程生成临时文件、主进程记录 AOF 重写缓冲区、追加增量命令、原子替换旧文件的完整流程，并补充重写期间 fork、COW、缓冲区带来的开销
+
+- 2026-06-18: Redis 持久化机制主题新增第 5 题"AOF 的格式是什么样"，简要说明 AOF 采用 RESP 协议格式记录 Redis 写命令，补充 SET 示例、参数个数与长度标记含义，以及混合持久化下 AOF 文件前半部分为 RDB 快照、后半部分为 AOF 增量命令
+
+- 2026-06-18: Redis 持久化机制主题第 4 题补充 RDB 自动加载前置条件，明确 dump.rdb 文件需存在且由 dir/dbfilename 定位、文件完整并通过校验、未开启 AOF、启动配置未绕开原 RDB；补充 appendonly yes、修改 dir/dbfilename、save "" 与 RDB 加载的关系，并纠正 redis-server --no-rdb 不是 Redis 原生通用启动参数、RDB 文件损坏通常会报错拒绝启动而非静默空库
+
+- 2026-06-17: Redis 持久化机制主题新增第 4 题"RDB 文件什么时候生成，怎么使用"，整理 SAVE 同步生成、BGSAVE 后台生成、save 配置自动触发、主从全量复制、SHUTDOWN、混合持久化 AOF 重写等生成场景，补充 RDB 通过 dir/dbfilename 在启动时加载恢复、RDB 与 AOF 同开时优先加载 AOF，以及 RDB 在宕机恢复、冷备份、数据迁移、主从同步、离线分析中的用途
+
+- 2026-06-17: Redis 持久化机制主题新增第 3 题"RDB 的文件结构是什么样的"，按文件头 REDIS+版本号、辅助信息区、数据库数据区、SELECTDB/DBSIZE/key-value 编码、过期时间和值类型、EOF 结束标识、CRC64 校验和梳理 RDB 二进制快照结构，强调 RDB 保存的是数据结果而非写命令过程
+
+- 2026-06-17: Redis 持久化机制主题新增第 2 题"RDB 和 AOF 有什么优缺点"，围绕数据安全性、恢复速度、文件体积、备份容灾、fork 成本、AOF 重写和刷盘策略系统对比 RDB 与 AOF，明确 RDB 偏备份和快速恢复、AOF 偏数据安全和实时恢复，并补充缓存场景、重要数据场景、混合持久化场景的选型建议
+
+- 2026-06-17: Redis 持久化机制主题新增第 1 题"Redis 持久化机制有哪些"，系统整理 RDB 快照持久化、AOF 追加日志持久化、RDB+AOF 混合持久化三种机制，补充 RDB 恢复快但可能丢快照后数据、AOF 数据安全性更高但文件大恢复慢、appendfsync 三种刷盘策略，以及生产环境常用 AOF everysec 配合混合持久化的选型建议；同时整理第 2 题"如果 Redis 机器突然掉电会怎样"，说明不同持久化配置下的数据丢失范围
+
 - 2026-06-17: Redis 部署模式主题新增第 18 题"Redis 集群模式可能出现数据丢失吗"，说明 Redis Cluster 是高可用和最终一致而非强一致，系统整理异步复制窗口导致主节点宕机丢写、网络分区下旧主短暂接收写入后被新主覆盖、主从同时故障或从节点落后导致数据丢失等场景，并补充 min-replicas-to-write、min-replicas-max-lag、AOF、副本数、WAIT 命令等降低风险但不能保证零丢失的手段
 - 2026-06-17: Redis 部署模式主题新增第 17 题"Redis 集群如何进行故障转移"，根据参考信息整理主节点 FAIL 后的转移流程：从节点参与选举、配置纪元自增、候选从节点广播 FAILOVER_AUTH_REQUEST、有投票权主节点返回 ACK、获得 N/2+1 多数票后晋升为新主、执行类似 SLAVEOF no one、接管原主槽位并通过 PONG/Gossip 广播恢复服务
 - 2026-06-17: Redis 部署模式主题新增第 16 题"Redis 集群如何进行故障检测"，系统整理 Redis Cluster 去中心化故障检测流程：节点通过 PING/PONG 和 Gossip 感知状态，cluster-node-timeout 超时后单节点标记 PFAIL，多数负责槽位的主节点确认后升级为 FAIL，FAIL 消息广播加速收敛，并说明主节点 FAIL 后从节点选举晋升接管槽位
