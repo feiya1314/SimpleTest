@@ -1,5 +1,11 @@
 # 更新日志
 
+- 2026-06-17: Redis 部署模式主题新增第 15 题"MOVED 和 ASK 重定向的作用和区别是什么"，系统整理两者在 Redis Cluster 请求路由中的作用、返回格式、客户端处理方式、ASKING 命令必要性、槽迁移过程中的配合关系，补充 slot 3999 从节点 A 迁移到节点 B 时部分 key 已搬迁但槽归属未切换的示例，并用表格对比永久重定向与临时重定向的本质区别
+- 2026-06-17: Redis 部署模式主题第 14 题"集群伸缩时怎么决定哪些槽需要迁移"补充澄清"Rebalance 是否会自动迁移 slot"——区分"不自动启动（仍需 DBA 手动敲命令、集群无后台守护进程）"与"执行时全自动（工具自己算偏差/生成方案/调 reshard 搬运）"，对比 reshard 需人给方案与 rebalance 工具自算方案的本质差异，强调集群层面无自我 rebalance 是故意设计
+- 2026-06-17: Redis 部署模式主题新增"集群伸缩时怎么决定哪些槽需要迁移"题（后被重排为第 14 题），明确槽迁移决策完全由 DBA 通过工具指定（集群无自动负载感知），对比 reshard 交互式手动指定 vs rebalance 按阈值自动算（默认 2%），强调 Gossip 只传槽分配不传负载指标，热点问题需靠 hash tag 拆分/客户端本地缓存/读副本分摊单独解决
+- 2026-06-17: Redis 部署模式主题新增第 8 题"Redis 集群重新分片的过程是怎样的"，聚焦单次 reshard 的命令级流程——驱动者从 redis-trib.rb 演进到 redis-cli --cluster、单 slot 迁移 5 步流程（IMPORTING → MIGRATING → GETKEYSINSLOT + MIGRATE 循环 → SETSLOT NODE 广播）、多 slot 串行迁移、客户端路由三态对照表（无感/ASK/MOVED）、过程关键保证（在线/原子/可恢复/bigkey 风险）
+- 2026-06-17: Redis 部署模式主题新增第 7 题"介绍下 Redis 集群伸缩的过程"，覆盖扩容流程（CLUSTER MEET 加入 + reshard 分配槽 + IMPORTING/MIGRATING 状态 + MIGRATE 原子搬运 + 添加从节点）、缩容流程（先迁槽再删从最后删主的顺序约束）、迁移中 MOVED 与 ASK 重定向区别（永久路由更新 vs 一次性临时重定向 + ASKING 命令）、关键特性（在线/原子/可恢复/bigkey 杀手）、运维建议（低峰期分批小步迁移）
+- 2026-06-17: Redis 部署模式主题新增第 6 题"一个键值对会存放到多个主节点吗"，明确单 key 只属于唯一主节点（CRC16 % 16384 槽位互斥分配），澄清三种易混情况（主从复制副本、hash tag 多 key 共槽、槽位迁移过渡态），并对比复制与分片在数据分布上的本质差异
 - 2026-06-16: Redis 缓存淘汰主题第 6 题"过期 key 的删除策略"重写并补全，新增三种删除策略全景对比（定时/立即删除主动+实时性最高但占CPU、惰性删除被动+CPU友好但内存泄漏、定期删除折中），明确主动删除/被动删除分类，并补充 maxmemory 触发主动淘汰兜底机制；新增第 7 题"AOF/RDB/主从复制场景下过期键怎么处理"——RDB 生成跳过过期键、载入时主从行为差异、AOF 写入与重写过期键处理、AOF 删除追加 DEL 命令的三步示例（GET message）、主从复制中从节点完全由主节点 DEL 命令驱动删除、3.2 版本前后从节点读取过期键的优化差异；原 7 题（核心配置项）顺延为第 8 题
 - 2026-06-16: Redis 缓存淘汰主题新增第 5 题"Redis 中 key 的过期时间是怎么保存的"，覆盖过期字典（expires）结构（键为指向键空间 key 对象的指针、值为 long long 毫秒级 UNIX 时间戳）、判断过期流程、为什么用独立字典而非塞进 redisObject 的设计原因，以及 EXPIRE/TTL/PERSIST 等命令；原 5/6 题顺延为 6/7 题
 - 2026-06-16: 新增 Redis 缓存淘汰主题（05缓存淘汰.md），整理 6 个问题链——8 种淘汰策略全景（noeviction / volatile-* 4 种 / allkeys-* 3 种，标注 LFU 为 4.0+ 新增）、实战选型建议（allkeys-lru/random/lfu 与 volatile-lru 适用场景）、LRU 与 LFU 区别（偶发流量与历史包袱）、Redis 近似 LRU 实现（24 位 lru 字段、采样、淘汰池）、过期删除策略（惰性 + 定期，与内存淘汰的关系）、核心配置项（maxmemory / maxmemory-policy / maxmemory-samples / lfu-log-factor / lfu-decay-time）
