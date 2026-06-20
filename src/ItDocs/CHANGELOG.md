@@ -1,5 +1,17 @@
 # 更新日志
 
+- 2026-06-19: ES 倒排索引主题新增第 6 题"怎么理解 ES 为每个字段单独建立倒排索引？和 Mapping 有什么关系"，整理每字段独立 Term Dictionary/Term Index/Posting List、Mapping 决定字段索引方式（text 分词建索引/keyword 整体作为 Term/数值编码建索引/index:false 不建索引）、text 与 keyword 索引差异示例对比、multi-fields 同时支持搜索和聚合
+
+- 2026-06-19: ES 倒排索引主题新增第 5 题"介绍下倒排索引结构"，整理 Term/Term Dictionary/Term Index/Posting List 四部分结构及查找流程、Posting List 包含 docID/TF/Position/Offset 的具体字段、字段级别倒排索引、Term Dictionary 分 block 前缀压缩、FST 相比 Trie 的优势、Posting List 的 SkipList/RoaringBitmap/FOR 压缩方式
+
+- 2026-06-19: ES 倒排索引主题新增第 4 题"新增的数据会写入新的 Segment 吗？每条数据就是一个 Segment 吗"，整理文档先写内存缓冲区+translog、refresh 批量刷写成新 Segment 的流程、更新操作本质是新增文档+标记删除老文档、Segment 物理清理依赖 Merge、避免随机写的性能设计思路
+
+- 2026-06-19: ES 倒排索引主题新增第 3 题"倒排索引是不可变的吗？不可变的优缺点是什么"，整理 Segment 级别不可变性、无需加锁/缓存友好/Filter Cache 驻留/压缩高效/故障恢复简单等优点、更新删除代价和 Segment 过多影响性能等缺点、多 Segment 机制和 Segment Merge 解决方案，纠正"倒排索引不可变≠primary shard 数量不能修改"和"不可变≠不能修改 field 属性"两个常见误解
+
+- 2026-06-19: ES 倒排索引主题新增第 2 题"ES 如何实现全文检索的"，整理写入时分析器（Character Filter/Tokenizer/Token Filter）分词建索引流程、查询时 Query/Fetch 两阶段执行、Match/Match Phrase/Term 等查询类型区别、BM25 评分算法（TF-IDF 改进/饱和限制/字段长度惩罚）、高亮显示原理以及字段存储优化等面试要点
+
+- 2026-06-19: ES 倒排索引主题新增第 1 题"介绍下 ES 的倒排索引"，整理倒排索引与正排索引的本质区别、Term Dictionary/Posting List/Term Index 三部分结构、分词与构建流程、查询加速原理（FST/SkipList/RoaringBitmap）、不可变 Segment 下的更新删除逻辑（标记删除+Merge 物理清理）、与正排索引/Doc Values 的关系、压缩优化方式以及模糊搜索、实时性等面试追问点
+
 - 2026-06-19: ES 集群节点主题新增第 6 题"介绍下 ES 的分段"，整理 Segment 作为 Lucene 倒排索引单元的本质、内存缓冲区和 translog 写入流程、refresh 近实时可搜索机制、flush 持久化和 commit point、Segment 不可变性及更新删除的逻辑操作、Segment Merge 物理删除和性能影响，补充 translog 阈值配置、merge 线程控制等面试要点
 
 - 2026-06-19: ES 集群节点主题第 3 题"介绍下 ES 的分片"补充副本分片细节，完善副本分片默认配置、动态调整、读扩展、高可用、主副分片不同节点分配、故障提升、写入并发复制以及 `_seq_no`、`_primary_term`、`_version` 的区别说明
