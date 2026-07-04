@@ -584,3 +584,48 @@ CompletableFuture<Object> result = CompletableFuture.anyOf(f1, f2);
 - 简单同步操作（不需要异步的开销）
 - CPU密集且无任务编排需求（直接用并行流更简单）
 - 需要取消任务（CompletableFuture的取消是"打断标记"并非真正中断线程）
+
+# 15. Stream的异常处理
+
+Stream中遇到异常怎么办？checked exception怎么处理？
+
+**checked exception处理：**
+
+- Lambda表达式内部不能直接抛出checked exception，因为函数式接口的方法签名不声明异常
+- **方案1**：在lambda内部用try-catch捕获，自行处理
+- **方案2**：将checked exception包装成RuntimeException抛出，外层再捕获
+
+```java
+// 方案1：内部捕获处理
+Stream.of("file1.txt", "file2.txt")
+    .forEach(path -> {
+        try {
+            Files.readAllLines(Paths.get(path));
+        } catch (IOException e) {
+            log.error("读取文件失败: {}", path, e);
+        }
+    });
+
+// 方案2：包装为unchecked exception
+Stream.of("file1.txt", "file2.txt")
+    .forEach(path -> {
+        try {
+            Files.readAllLines(Paths.get(path));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    });
+```
+
+**unchecked exception处理：**
+
+- 顺序流中某个元素处理抛出异常，**整个Stream立即终止**，异常传播给调用方
+- 并行流中，异常在ForkJoinPool worker线程抛出，最终汇集到调用线程，**已开始的元素会继续执行完**，但不再处理剩余元素
+- forEach和普通终止操作的行为一致：异常中断流处理
+
+**最佳实践：**
+
+- 尽量在lambda内部**处理异常**，避免中断整个Stream
+- 使用工具方法封装异常处理逻辑，如将checked exception转为RuntimeException
+- 对于批量IO操作，考虑在lambda内捕获记录异常而不是抛出，保证其他元素继续处理
+- 并行流中谨慎处理异常，使用自定义异常处理逻辑而不是依赖外层try-catch

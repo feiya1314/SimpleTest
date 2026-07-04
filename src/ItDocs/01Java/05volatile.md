@@ -8,6 +8,7 @@ volatile使用**lock**前缀指令（x86架构）实现，汇编层面会生成�
 movl %eax, [%ebx]  ; 写操作
 lock addl $0, 0(%esp)  ; lock前缀指令
 ```
+**字节码层面：** volatile使用**ACC_VOLATILE**访问标志标记变量，供后续操作此变量时判断是否遵循volatile语义处理。
 **lock指令的作用：**
 1. **锁总线/缓存锁**：阻止其他CPU访问该内存地址
 2. **缓存一致性**：将其他CPU缓存中的该地址数据标记为无效（Invalid）
@@ -24,13 +25,15 @@ CPU发送RFO (Request For Ownership) 消息给其他CPU
     ↓
 线程B读取时发现缓存无效，从主存重新加载
 ```
-> volatile在多核CPU下的性能开销？
-相比普通变量，volatile有额外开销：
-- 缓存行失效通知
-- 内存屏障指令
-- 可能的锁总线操作
-在x86架构下开销相对较小（约比普通变量慢2-3倍），在ARM等架构下开销更大。
+**性能影响：**
+- volatile写比普通变量慢，因为需要插入内存屏障指令，阻止处理器乱序执行
+- 在x86架构下开销相对较小（约比普通变量慢2-3倍），在ARM等架构下更大
+- 读操作性能与普通变量几乎没有差别
+
+![volatile原理图](../assets/01Java/eb7014cbfb0e4c7a976236dedc295ce9.png)
+
 # 2. Happens-Before规则与volatile的有序性保证
+
 什么是Happens-Before规则？volatile如何利用Happens-Before保证有序性？
 **原理分析**
 **JMM（Java Memory Model）中的Happens-Before：**
@@ -44,6 +47,14 @@ Happens-Before是JMM定义的偏序关系，约束了操作间的可见性和执
 6. **中断规则**：`interrupt()`Happens-Before被中断线程检测到中断
 7. **终结规则**：构造函数Happens-Before`finalize()`
 8. **传递性**：A Happens-Before B，B Happens-Before C → A Happens-Before C
+**volatile变量规则详解：**
+英文原文：*A write to a volatile field happens-before every subsequent read of that same field.*
+- 这条规则确保：**对一个volatile变量的写操作如果发生于读之前**，JVM保证写操作先完成，随后的读可以读到最新值
+- 不仅volatile变量本身可见，线程1写入volatile变量**之前的写操作**都对线程2可见
+- 前提是写发生在读之前，它描述的是可见性问题，而不是说写一定发生在读之前
+
+![volatile happens-before](../assets/01Java/578119bb25854c7481ae6f7d3a681732.png)
+
 **volatile的有序性保证：**
 ```java
 // 线程A
@@ -60,7 +71,9 @@ if (flag) {
 - 传递性：线程A写 Happens-Before 线程B读
 > Happens-Before是因果关系还是时间先后？
 Happens-Before是Java内存模型定义的**偏序关系**，不是实际的时间先后。它定义了**如果A Happens-Before B，Java平台必须保证A的执行结果对B可见**。
+
 # 3. volatile与synchronized的区别
+
 volatile和synchronized有什么区别？它们能互相替代吗？
 **原理分析**
 **区别对比：**
@@ -100,7 +113,13 @@ if (obj != null) {
 ```
 > volatile能否保证复合操作的原子性？
 不能。**`i++`、`count++`、`list.add()`等复合操作都不是原子的**。volatile只保证单次读/写的原子性，不保证"读-改-写"的原子性。
+**volatile能保证线程安全的两个条件：**
+在同时满足以下两个条件时，volatile可以保证线程安全：
+1. **运算结果不依赖变量的当前值**，或者能够确保只有单一的线程修改变量的值
+2. **变量不需要与其他状态变量共同参与不变约束**
+
 # 4. volatile的缓存行伪共享问题
+
 volatile变量是否存在缓存行伪共享问题？如何优化？
 **原理分析**
 **缓存行伪共享原理：**
@@ -127,8 +146,10 @@ class Counter {
 ```
 > @Contended注解的原理？
 注解会指示JVM在对象布局中插入填充字节，使被注解的字段独占缓存行。需添加JVM参数**-XX:-RestrictContended**才能生效。
-# 5. volatile的实现：Lock指令详解
-volatile的lock指令具体做了什么？为什么能保证可见性？
+
+# 5. volatile的实现：Lock指令与内存屏障详解
+
+volatile的lock指令具体做了什么？内存屏障如何工作？
 **原理分析**
 **Lock指令在x86下的行为：**
 ```asm
@@ -141,12 +162,26 @@ lock movq %rax, [%rdi]  ; lock前缀
 1. **缓存锁定（Cache Locking）**
    - 当操作的数据在缓存中时，修改缓存行并标记为M（Modified）
    - 发送Invalidate消息到其他CPU
-2. **缓存一致性协议（MOESI/MESIF）**
+2. **缓存一致性协议（MESI）**
    - 其他CPU将共享状态的缓存行置为I（Invalid）
    - 读操作时从持有者获取或从主存加载
 3. **内存屏障（Memory Barrier）**
    - 阻止指令重排序
    - 刷新Store Buffer到主存
+**Lock指令的历史演进：**
+- **早期CPU**：锁总线方式，遇到Lock指令就由仲裁器选择一个核心独占总线，其他CPU不能与内存通讯
+- **P6之后**：改用Ringbus + MESI协议（Cache Locking），数据已被CPU缓存且要写回主存时用缓存锁，否则仍锁总线
+**MESI缓存一致性协议详解：**
+每个CPU核心有自己的高速缓存（L1/L2），MESI控制缓存行状态：
+- **M Modified（已修改）**：缓存值跟主存不一样，脏了
+- **E Exclusive（独占）**：只有自己有，和主存一致
+- **S Shared（共享）**：多个核心都有这份数据，都一致
+- **I Invalid（已失效）**：缓存数据作废，必须重新读主存
+**MESI工作流程：**
+1. 线程A在CPU1修改变量
+2. CPU1缓存行变为**M**
+3. 广播通知其他核心：你们的缓存**失效（I）**
+4. 其他CPU再读时发现是I状态，必须**重新从主存加载**
 **可见性保证流程：**
 ```
 CPU0: volatile write x = 1
@@ -168,16 +203,34 @@ CPU1: volatile read x
     ↓
     从CPU0或主存获取最新值
 ```
-> 什么情况下lock会锁总线而非缓存？
-当缓存行被其他CPU以共享状态持有时，或者缓存行与内存的映射关系不同时，CPU会使用更慢的**总线锁**。在Pentium 4之前的处理器更常发生。
-# 6. volatile的读写语义
-volatile的读和写的语义是什么？与其他操作的组合会怎样？
+**内存屏障（Memory Barrier）：**
+内存屏障是一组处理器指令，用于**禁止指令重排序、控制缓存读写顺序**。CPU和编译器为了优化性能会乱序执行指令（指令重排），内存屏障就像一堵墙，**墙两边的代码不允许互相穿插、颠倒顺序**。
+**JMM定义的4种内存屏障：**
+1. **LoadLoad屏障**：前面普通读 → 后面普通读，保证前面读完再执行后面读
+2. **StoreStore屏障**：前面普通写 → 后面普通写，保证前面写先落地再后面写
+3. **LoadStore屏障**：前面读 → 后面写，禁止颠倒
+4. **StoreLoad屏障（最强、开销最大）**：前面写 → 后面读，写强制刷入主存、读强制从主存加载。volatile写后面必加这个
+**硬件层面内存屏障：**
+- **lfence（Load Barrier）**：在**读指令前**插入，让高速缓存失效，重新从主存加载
+- **sfence（Store Barrier）**：在**写指令之后**插入，让写入缓存的最新数据写回到主存
+- **mfence**：全屏障，具备lfence和sfence能力
+- **Lock前缀**：不是内存屏障但能完成类似功能，先对高速缓存加锁再执行指令，释放锁后刷新缓存到主存
+**x86平台特殊优化：**
+x86遵循TSO模型，除StoreLoad外其余Barrier均不需显式指令。HotSpot VM选择**LOCK指令**作为StoreLoad屏障，OpenJdk源码中`membar()`方法对MP（多处理器）环境使用`lock addl`实现。
+
+# 6. volatile的读写语义与重排序规则
+
+volatile的读和写的语义是什么？禁止重排序的具体规则有哪些？
 **原理分析**
 **volatile读写语义：**
 | 操作 | 语义 |
 |-----|------|
 | **volatile读** | 获取前一个volatile写的结果，禁止重排序 |
 | **volatile写** | 确保之前的操作全部完成，禁止重排序 |
+**volatile禁止重排序的3个场景：**
+1. **第二个操作是volatile写**，不管第一个操作是什么都不会重排序
+2. **第一个操作是volatile读**，不管第二个操作是什么都不会重排序
+3. **第一个操作时volatile写，第二个操作时volatile读**，也不会发生重排序
 **读写语义示例：**
 ```java
 class VolatileExample {
@@ -207,9 +260,11 @@ volatile int v;
 int b = a;  // 不允许重排到 v = 1 之前
 v = 1;
 ```
-> volatile double/double类型是否安全？
+> volatile double/long类型是否安全？
 在x86架构下double是64位，一次内存操作完成。但在某些处理器上可能分两次32位操作，**不保证原子性**。建议使用volatile配合synchronized或AtomicReference来保证安全。
+
 # 7. volatile与CPU内存模型的关系
+
 Java的volatile如何与CPU的内存模型交互？两者是什么关系？
 **原理分析**
 **CPU内存模型（从强到弱）：**
@@ -236,7 +291,9 @@ x86的TSO模型对volatile已经比较友好：
 x86的**mfence**指令成本很高。TSO通过Store Buffer的"写读顺序"保证来避免显式的StoreLoad屏障：
 - Store Buffer必须按顺序刷新
 - 读操作先检查Store Buffer再检查缓存
+
 # 8. volatile在DCL单例模式中的应用
+
 单例模式中volatile的作用是什么？为什么需要volatile？
 **原理分析**
 **双重检查锁定（Double-Checked Locking）：**
@@ -279,7 +336,9 @@ instance = new Singleton();
 synchronized可以，但性能差：
 - 每次`getInstance()`都需要获取锁
 - 而volatile+DCL只需要第一次检查时加锁，之后无需加锁
+
 # 9. volatile修饰数组的问题
+
 volatile修饰数组和volatile修饰数组元素有什么区别？
 **原理分析**
 **两种情况：**
@@ -315,7 +374,11 @@ class VolatileArrayWrapper {
 1. 根据索引计算内存地址（数组起始地址 + 偏移量）
 2. 写入值
 这两步不能原子完成。**volatile只保证值本身的读写原子性，不保证计算过程**。
+**volatile修饰引用类型：**
+volatile保证引用的可见性，但**不保证引用内容的可见性**。当多个线程访问volatile引用时，引用本身是最新的，但引用指向的对象内部的字段不保证可见。
+
 # 10. volatile与final的组合使用
+
 volatile和final能一起使用吗？有什么特殊规则？
 **原理分析**
 **final与volatile的兼容性：**
@@ -355,3 +418,81 @@ SafeImmutable obj = new SafeImmutable(1, 2, 3);
 - 让引用本身可见（obj引用本身）
 - 让代码意图更清晰
 最佳实践：使用**final + volatile**实现线程安全的不可变对象（如String、AtomicReference）
+
+# 11. JIT优化与volatile：代码外提问题
+
+为什么没有volatile修饰的`while(!flag)`循环会无法退出？JIT做了什么优化？
+**原理分析**
+**经典问题：**
+```java
+boolean flag = true;
+// 线程A
+while (flag) {
+    // 无限循环，即使线程B修改flag为false也无法退出
+}
+// 线程B
+flag = false;
+```
+**很多人错误的理解：** 以为是JVM主存模型问题——while执行速度太快，修改flag来不及刷主存。
+**真正原因：JIT代码外提（Code Hoisting）**
+JIT编译器在编译热点代码时，发现`flag`在循环体内没有被修改，就会做优化：
+```
+优化前：
+    while (flag) { ... }
+优化后：
+    if (flag) { while(true) { ... } }
+```
+- JIT将`flag`的判断提到循环外面，因为JIT基于**单线程的happen-before关系**做优化
+- 一旦`if(flag == true)`判断进入while(true)，另一个线程再怎么修改flag也无济于事
+- 本质上是**编译器层面的重排序**
+**volatile如何解决：**
+- volatile告诉编译器**禁止对该变量做任何重排序优化**
+- volatile阻止了JIT将flag判断外提（代码外提）
+- 线程B修改flag时，volatile保证修改立即对其他线程可见
+> volatile禁止重排序能解决什么层面的问题？
+重排序有两种：**编译器层面**和**处理器层面**。volatile标记解决编译器层面的可见性与重排序问题，内存屏障则解决硬件层面的可见性与重排序问题。
+
+# 12. 单核CPU下需要volatile吗
+
+单核CPU上多线程还需要volatile和synchronized吗？
+**原理分析**
+**可见性方面：**
+- 在单核CPU中，同一进程的不同线程共享CPU缓存，volatile的内存可见特性**意义不大**
+- 因为不同线程无需通过主内存通信，都访问同一块物理内存区域
+- 但是对于多核CPU，每个核心的缓存相互独立，需要通过主内存通信解决缓存一致性问题，volatile的可见性至关重要
+**有序性方面：**
+- 单核CPU也会对指令进行重排序（如while true的代码外提场景）
+- volatile通过插入读写屏障**禁止volatile变量之间的重排序**
+- JMM增强了volatile的语义——严格限制编译器和处理器对volatile变量与普通变量的重排序
+**线程安全方面（synchronized vs volatile）：**
+- synchronized在单核下的**互斥性语义**仍然必要
+- 例如`i++`需要三步：读、+1、写，如果A线程在执行+1之后没来得及写，CPU切到B线程执行i++，B完成后切回A，A把之前计算的值写入，会覆盖B的更新
+- **除非单核并发不允许抢占式，否则一样会产生线程不安全**
+> 总结：单核CPU不需要volatile保证可见性，但仍然需要volatile防止指令重排序，以及synchronized保证互斥。
+
+# 13. 已有缓存一致性协议为什么还需要volatile
+
+MESI（缓存一致性协议）已经能保证缓存一致了，为什么还需要volatile？
+**原理分析**
+**volatile与MESI隔着多层抽象：**
+volatile是Java语言层面的保证，MESI是CPU硬件层面的实现细节，中间要经历**Java编译器、Java虚拟机/JIT、操作系统、CPU核心**多层转换。
+**原因1：跨平台——不是所有硬件都支持MESI**
+- Java作为跨平台语言，JVM需要提供统一语义
+- 有些CPU不支持MESI协议，必须用锁总线或显式fence指令来保证可见性
+**原因2：JVM本地内存 ≠ CPU缓存**
+- MESI可以解决CPU缓存层面的可见性问题
+- volatile解决的是JVM层面的可见性问题（工作内存与主内存的抽象）
+**原因3：Store Buffer和Invalidate Queue打破MESI的实时性**
+- 由于MESI协议执行成本大，CPU引入**Store Buffer**和**Invalidate Queue**来优化
+- 写入数据先进Store Buffer，不直接更新缓存→内存，导致其他核心不能立即看到
+- Invalidate Queue暂存失效消息，不立即处理，导致其他核心可能读到过期数据
+- 缓存一致性只能保证**最终一致**，不能保证**立刻马上可见**
+**原因4：Coherence ≠ Consistency**
+- MESI只保证**Coherence（缓存一致性）**：对单个变量的写操作在所有核心上的全局顺序一致
+- 但不保证**Consistency（内存一致性）**：对多个变量的操作顺序的一致性没有保证
+- 即使有MESI，`x=1; y=2`两个变量之间仍可能被重排序
+**原因5：ARM/PowerPC等弱一致性架构**
+- ARM和PowerPC架构只保证有依赖关系（控制依赖、数据依赖、地址依赖）的指令顺序
+- 对于`x=1; y=2`这种无依赖指令，不保证提交顺序
+- volatile编译成ARM/PowerPC能识别的barrier指令，才能按顺序执行
+> 总结：volatile是一个高层的抽象意图，MESI只是实现这个抽象的一个底层细节。volatile保证了跨平台的可见性和有序性统一语义，而MESI只是x86等特定架构下的实现手段。

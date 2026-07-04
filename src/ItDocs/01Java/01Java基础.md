@@ -256,6 +256,10 @@ Java中4种引用级别由高到低：**强引用 > 软引用 > 弱引用 > 虚�
 - 方法内局部变量：方法结束、栈帧弹出后引用消失，对象被回收
 - 全局变量：需要手动置null来释放引用
 
+**实践技巧**：ArrayList的clear()方法将elementData数组每个元素置为null，而非elementData=null。既释放了元素对象的引用，又保留了数组的强引用，避免后续add()时重新分配内存。
+
+![ArrayList清除元素示意图](../assets/01Java/55bec83dd4c24925a48e7a59b15f2352.png)
+
 ```java
 Object strong = new Object();  // 强引用
 ```
