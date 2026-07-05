@@ -11,6 +11,7 @@ synchronized的底层实现原理是什么？它是如何实现锁的？
 - **synchronized块**：编译生成`monitorenter`和`monitorexit`指令。为保证异常时也能释放锁，javac添加隐式try-finally，在finally中调用monitorexit释放锁，因此字节码中有两条monitorexit指令（正常路径和异常路径）
 - **synchronized方法**：编译生成`ACC_SYNCHRONIZED`标志。JVM进行方法调用时发现该标志，先尝试获得锁
 - 两者底层实现本质相同，均基于对象头的Monitor机制
+![synchronized底层实现流程](../assets/01Java/22f1cf4e49a640408a4bed6eda463002.png)
 **字节码层面：**
 ```java
 public void syncMethod() {
@@ -31,6 +32,7 @@ monitorexit     // 释放锁（异常路径，隐式try-finally生成）
 | 偏向锁 | 23位线程ID + 2位epoch + 4位年龄 + 1位偏向锁位 + 2位锁标志位(01) |
 | 轻量级锁 | 62位指针指向栈中锁记录 + 2位锁标志位(00) |
 | 重量级锁 | 62位指针指向ObjectMonitor + 2位锁标志位(10) |
+![Mark Word 32位结构](../assets/01Java/43d9b40e7e6f404aaba640ebde8ba8af.png)
 > 注意：升级为偏向锁、轻量级锁或重量级锁后，hashcode会存放到其他地方。对象刚创建且未执行hashCode()时，Mark Word不存HashCode。一旦调用了hashCode()，直接废掉偏向锁，对象进入无锁→轻量级锁，跳过偏向锁，因为空间已被HashCode占满。
 **Monitor工作流程：**
 ```
@@ -66,6 +68,7 @@ synchronized的锁升级过程是怎样的？为什么不能降级？
 - **原理**：记录线程ID到对象头，后续该线程进入同步块无需任何同步操作
 - **条件**：-XX:+UseBiasedLocking（JDK 15默认禁用）
 - **注意**：偏向锁默认不是立即启动，程序启动后有数秒延迟，可通过`-XX:BiasedLockingStartupDelay=0`关闭延迟
+![偏向锁延迟启动](../assets/01Java/24ac4dfe43a04837acb2bbbcaa9dca29.png)
 
 **偏向锁加锁过程：**
 1. **首次加锁（匿名偏向）**：对象创建后mark word中thread id为0，CAS将thread id改为当前线程ID，成功则获得偏向锁
@@ -74,15 +77,15 @@ synchronized的锁升级过程是怎样的？为什么不能降级？
 
 **偏向锁解锁：**
 只需将栈中最近一条lock record的obj字段设为null，不会修改对象头的thread id。偏向锁不会主动释放，只有遇到其他线程竞争时才撤销。
-
+![偏向锁解锁步骤](../assets/01Java/91f7e98f2d42497fadb82b7d6c5efd93.png)
 **偏向锁撤销：**
 需要等待全局安全点（STW），暂停拥有偏向锁的线程，判断锁对象是否处于锁定状态，撤销后恢复到无锁或轻量级锁。撤销成本高，是JDK 15默认禁用的原因之一。
-
+![锁升级与Mark Word变化](../assets/01Java/5cec5b4d2208425e8389c632faf177d3.png)
 **轻量级锁（Lightweight Locking）：**
 - **目的**：基于CAS的"自旋"避免线程阻塞
 - **适用场景**：多个线程交替进入临界区
 - **原理**：在栈帧中创建Lock Record，通过CAS将Mark Word复制到栈帧
-
+![Lock Record结构](../assets/01Java/8545cca2943e43cbaaf178186684a6ea.png)
 **轻量级锁加锁过程：**
 1. 在栈帧中创建Lock Record，obj字段指向锁对象
 2. CAS将Lock Record地址写入对象头mark word，成功则获得轻量级锁
@@ -108,6 +111,7 @@ HotSpot JVM理论上支持锁降级，但仅在STW阶段对仅能被VMThread访�
 因为现代应用通常使用轻量级锁，且偏向锁会带来额外开销：
 - 撤销成本高（需在安全点STW）
 - 实际使用中偏向锁经常成为性能瓶颈
+![偏向锁适用场景](../assets/01Java/02963f6fb0764bb0abbbe01023c428ed.png)
 
 # 3. synchronized与ReentrantLock的区别
 
@@ -194,6 +198,7 @@ public String builder(String s1, String s2, String s3) {
 
 synchronized的Monitor机制是怎样的？ObjectMonitor的结构是什么？
 **原理分析**
+![Monitor对象结构](../assets/01Java/facd6a024483403dab52ecf22f91e2fc.png)
 **ObjectMonitor结构（C++）：**
 ```cpp
 ObjectMonitor() {

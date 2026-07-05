@@ -243,6 +243,8 @@ public static int get() {
 - 异常表会添加监控try和catch的异常处理器，捕获"any"类型，执行完finally后重新抛出
 - try-with-resources会自动关闭资源，底层通过添加suppressed异常实现
 
+![操作系统异常类别](../assets/01Java/9c61ef4b2eb0452789409d83f64e85bd.png)
+
 # 11. Java四种引用类型
 
 Java有哪几种引用类型？各自的GC表现是什么？
