@@ -12,12 +12,13 @@
 
 ```java
 public final class String {
-    private final char[] value;  // final + private
+    private final byte[] value;  // JDK 9+：byte[] + coder（Compact Strings）
+    private final byte coder;    // 编码标识：0=LATIN1, 1=UTF16
     // substring、concat、replace等方法都重新new String，不修改原对象
 }
 ```
 
-**String的value是final和private的**，所有看似修改的方法（substring、concat、replace）实际上都返回一个新String对象。
+**String的value是final和private的**，所有看似修改的方法（substring、concat、replace）实际上都返回一个新String对象。JDK 9+引入**Compact Strings**，底层由`char[]`改为`byte[]`，通过`coder`字段标识编码（LATIN1/UTF16），Latin1字符只需1字节，减少内存占用。
 
 **设计成不可变的好处：**
 
@@ -143,6 +144,13 @@ String s = a + b + c;
 // sb.append(a).append(b).append(c);
 // String s = sb.toString();
 ```
+
+**JDK 9+优化（invokedynamic + StringConcatFactory）：**
+
+JDK 9开始，字符串拼接不再直接生成StringBuilder调用，而是使用**invokedynamic**指令，引导方法返回**StringConcatFactory**的策略实现。优势：
+- 编译时只生成轻量invokedynamic指令，拼接策略由运行时决定
+- 支持**动态策略选择**（如byte[]直接拼接、StringBuilder兜底等）
+- 减少.class体积，更利于未来优化不必改class文件
 
 **循环拼接的陷阱：**
 

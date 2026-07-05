@@ -58,7 +58,7 @@ Happens-Before是JMM定义的偏序关系，约束了操作间的可见性和执
 **volatile的有序性保证：**
 ```java
 // 线程A
-flag = true;
+volatile boolean flag = true;
 volatile int x = 1;
 // 线程B
 if (flag) {
@@ -261,7 +261,7 @@ int b = a;  // 不允许重排到 v = 1 之前
 v = 1;
 ```
 > volatile double/long类型是否安全？
-在x86架构下double是64位，一次内存操作完成。但在某些处理器上可能分两次32位操作，**不保证原子性**。建议使用volatile配合synchronized或AtomicReference来保证安全。
+在JSR-133（Java 5+）之后，volatile保证**double/long的读写原子性**。x86架构下一次内存操作即可完成64位读写，即使在某些需要分两次32位操作的处理器上，JVM也会通过锁机制保证原子性。
 
 # 7. volatile与CPU内存模型的关系
 

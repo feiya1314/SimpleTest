@@ -629,3 +629,106 @@ Stream.of("file1.txt", "file2.txt")
 - 使用工具方法封装异常处理逻辑，如将checked exception转为RuntimeException
 - 对于批量IO操作，考虑在lambda内捕获记录异常而不是抛出，保证其他元素继续处理
 - 并行流中谨慎处理异常，使用自定义异常处理逻辑而不是依赖外层try-catch
+
+# 16. 默认方法（Default Methods）
+
+为什么引入默认方法？和抽象类有什么区别？菱形冲突怎么解决？
+
+**引入原因：** 为了**向后兼容**。在现有接口中新增方法而不破坏已有实现类。典型例子：JDK 8在Collection接口中新增了stream()、forEach()等默认方法，已有实现类无需修改就能获得这些方法。
+
+**与抽象类的区别：**
+
+| 维度 | 接口默认方法 | 抽象类 |
+|------|-------------|--------|
+| 多继承 | 一个类可实现多个接口（含默认方法） | 单继承，一个类只能继承一个抽象类 |
+| 构造方法 | 接口不能有构造方法 | 可以有构造方法 |
+| 状态 | 不能持有实例字段 | 可以持有实例字段和状态 |
+| 方法类型 | 只能有抽象方法和默认方法（含静态方法） | 可以有抽象方法和具体方法 |
+| 访问修饰符 | 默认方法是public | 方法可以是public/protected/private |
+| 设计目的 | 行为多继承、功能扩展 | 代码复用、模板设计 |
+
+**菱形冲突解决规则（3条）：**
+
+1. **类优先原则**：如果父类中的具体方法和接口默认方法冲突，**父类方法优先**（"类胜于接口"）
+2. **子接口优先**：如果多个父接口有相同默认方法，**最具体（最子类化）的接口优先**
+3. **必须显式重写**：如果以上规则无法解决（如两个平级接口有同名默认方法），实现类必须 **重写该方法**，可使用 `Xxx.super.method()` 指定调用哪个接口的默认方法
+
+```java
+interface A {
+    default void hello() { System.out.println("A"); }
+}
+interface B {
+    default void hello() { System.out.println("B"); }
+}
+class C implements A, B {
+    @Override
+    public void hello() {
+        A.super.hello(); // 指定调用A的默认方法
+    }
+}
+```
+
+# 17. java.time日期API
+
+java.time包的核心类有哪些？和旧版Date有什么区别？为什么线程安全？
+
+**核心类：**
+
+| 类 | 说明 | 示例 |
+|----|------|------|
+| **LocalDate** | 日期（年-月-日），无时间 | 2024-03-15 |
+| **LocalTime** | 时间（时:分:秒.纳秒），无日期 | 14:30:00 |
+| **LocalDateTime** | 日期+时间，无时区 | 2024-03-15T14:30:00 |
+| **Instant** | 时间戳（自1970-01-01T00:00:00Z的纳秒数） | 适用于机器时间 |
+| **Duration** | 时间间隔（秒/纳秒），用于LocalTime/Instant | 2小时 |
+| **Period** | 日期间隔（年/月/日），用于LocalDate | 1年2个月 |
+
+```java
+// 创建
+LocalDate date = LocalDate.of(2024, 3, 15);
+LocalTime time = LocalTime.of(14, 30);
+LocalDateTime dt = LocalDateTime.of(date, time);
+Instant now = Instant.now();
+
+// 操作
+LocalDate tomorrow = LocalDate.now().plusDays(1);
+LocalDate birthday = LocalDate.now().minusYears(1);
+int year = LocalDate.now().getYear();
+
+// Duration/Period 计算间隔
+Duration duration = Duration.between(Instant.now(), Instant.now().plusSeconds(3600));
+Period period = Period.between(LocalDate.of(2020, 1, 1), LocalDate.now());
+```
+
+**DateTimeFormatter：** 线程安全，用于日期格式化和解析。
+
+```java
+// 预定义格式
+DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE;
+LocalDate.parse("2024-03-15", formatter);
+
+// 自定义格式
+DateTimeFormatter custom = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+String formatted = LocalDateTime.now().format(custom);
+LocalDateTime parsed = LocalDateTime.parse("2024-03-15 14:30:00", custom);
+```
+
+**为什么线程安全：**
+
+旧版 `java.util.Date`、`SimpleDateFormat` 是**可变对象**，且 `SimpleDateFormat` 内部维护Calendar状态，多线程并发调用format/parse会导致数据错乱。
+
+java.time的所有类（LocalDate、LocalTime、LocalDateTime、DateTimeFormatter等）都是**不可变对象**——所有"修改"操作都返回新实例，原对象不变。不可变对象天然线程安全，无需额外同步。DateTimeFormatter的format方法不修改内部状态，所有计算字段都是局部变量，不存在共享可变状态。
+
+**与旧版Date的转换：**
+
+```java
+// Date → Instant
+Date date = new Date();
+Instant instant = date.toInstant();
+
+// Instant → Date
+Date.from(instant);
+
+// Date → LocalDateTime（通过Instant+时区）
+LocalDateTime ldt = LocalDateTime.ofInstant(date.toInstant(), ZoneId.systemDefault());
+```

@@ -471,3 +471,196 @@ User deepClone(User user) throws Exception {
     return (User) ois.readObject();
 }
 ```
+
+# 18. String、StringBuilder、StringBuffer的区别
+
+String、StringBuilder、StringBuffer三者的区别及适用场景？
+
+**可变性：**
+
+- **String**：不可变，底层是**final char[]**（JDK 9后为byte[]），任何修改都会创建新对象
+- **StringBuilder**：可变，底层是**非final char[]**，修改在原数组上操作
+- **StringBuffer**：可变，底层也是char[]，方法与StringBuilder相同但加了**synchronized**
+
+**线程安全：**
+
+- **String**：不可变，天然线程安全
+- **StringBuffer**：线程安全，方法用**synchronized**修饰
+- **StringBuilder**：非线程安全，单线程下使用
+
+**性能：**
+
+- **StringBuilder > StringBuffer > String**（String拼接会产生大量临时对象）
+
+**使用场景：**
+
+- **String**：少量字符串操作或不变化的字符串
+- **StringBuilder**：单线程字符串缓冲区（如方法内字符串拼接）
+- **StringBuffer**：多线程共享的字符串缓冲区
+
+# 19. ==与equals()和hashCode()的契约关系
+
+==和equals()有什么区别？hashCode()与equals()有什么契约关系？
+
+**==运算符：**
+
+- **基本类型**：比较的是**值**是否相等
+- **引用类型**：比较的是**内存地址**是否指向同一个对象
+
+**equals()方法：**
+
+- **Object默认实现**：内部就是==，比较内存地址
+- **重写后的行为**：按业务逻辑比较内容是否相等（如String、Integer等都已重写）
+
+**hashCode()与equals()的契约：**
+
+1. **一致性**：同一对象多次调用hashCode()必须返回相同的整数（equals比较中用到的信息没变的前提下）
+2. **equals相等 → hashCode必等**：如果`a.equals(b)==true`，则`a.hashCode()==b.hashCode()`**必须成立**
+3. **hashCode相等 → equals不一定相等**：即哈希冲突，不同对象计算出相同哈希值是允许的
+4. **重写equals必须重写hashCode**：否则违反契约，会导致HashMap/HashSet等哈希集合出现逻辑错误
+
+**典型场景：**
+
+```java
+// 未重写hashCode的后果
+Map<Person, String> map = new HashMap<>();
+map.put(new Person("Tom"), "value");
+map.get(new Person("Tom"));  // null！因为两个Person对象hashCode不同
+```
+
+# 20. 接口与抽象类的区别
+
+接口和抽象类有什么区别？JDK 8前后接口有什么变化？
+
+**语法层面：**
+
+| 对比项 | 抽象类 | 接口 |
+| --- | --- | --- |
+| 关键字 | **abstract class** | **interface** |
+| 继承/实现 | 单继承（extends） | 多实现（implements） |
+| 构造方法 | 可以有 | 不能有 |
+| 成员变量 | 各种类型 | **public static final**（常量） |
+| 方法类型 | 抽象方法、具体方法 | 抽象方法、default、static（JDK 8+） |
+| 访问修饰符 | 任意 | 方法默认**public** |
+
+**设计层面：**
+
+- **抽象类**：描述**是什么**（is-a）关系，代码复用，对共性进行抽象
+- **接口**：描述**能做什么**（has-a/can-do）能力，定义行为规范
+
+**JDK 8+接口新特性：**
+
+- 允许**default方法**（提供默认实现，子类可选重写）
+- 允许**static方法**（工具方法，接口名直接调用）
+- JDK 9允许**private方法**（辅助default方法复用代码）
+
+# 21. 面向对象四大特性
+
+面向对象的四大特性是什么？各自的作用？
+
+**封装：**
+
+将对象的**数据和操作数据的方法**绑定在一起，对外隐藏内部实现细节。通过**访问修饰符**（private/protected/public）控制访问权限。降低复杂度，提高可维护性。
+
+**继承：**
+
+子类**复用**父类的属性和方法，并可以扩展新功能。Java是**单继承**（一个类只能有一个直接父类），但可以通过**多层继承**和**接口多实现**弥补。
+
+**多态：**
+
+同一操作作用于不同对象产生不同的执行结果。Java通过**方法重写**和**接口实现**实现多态，运行时根据**实际对象类型**调用对应方法（动态绑定）。三个必要条件：继承、重写、父类引用指向子类对象。
+
+**抽象：**
+
+从具体事物中**提取共同特征**，忽略非本质细节。通过**抽象类**和**接口**来实现。降低复杂度，提高扩展性。
+
+# 22. 自动装箱与拆箱原理
+
+什么是自动装箱和拆箱？底层是如何实现的？
+
+**自动装箱（Autoboxing）：**
+
+编译器自动将**基本类型**转换为对应的**包装类型**。底层调用包装类型的**valueOf()**方法。
+
+```java
+Integer n = 127;  // 编译器自动转为：Integer n = Integer.valueOf(127);
+```
+
+**自动拆箱（Unboxing）：**
+
+编译器自动将**包装类型**转换为对应的**基本类型**。底层调用包装类型的**xxxValue()**方法。
+
+```java
+int m = n;  // 编译器自动转为：int m = n.intValue();
+```
+
+**触发场景：**
+
+1. **赋值**：基本类型赋值给包装类型变量（装箱），反之拆箱
+2. **方法调用**：实参与形参类型不匹配时自动转换
+3. **运算**：包装类型参与算术运算或比较时自动拆箱
+
+**注意事项：**
+
+- **空指针风险**：包装类型为null时拆箱抛出**NullPointerException**
+- **性能开销**：频繁装箱拆箱在循环中会产生大量临时对象
+- **缓存池**：Integer默认缓存**-128~127**，此范围内装箱复用缓存对象
+
+```java
+Integer a = 100, b = 100;
+a == b;  // true（缓存池同一对象）
+
+Integer c = 200, d = 200;
+c == d;  // false（各自new对象）
+// 比较包装类型值请用 equals()
+```
+
+# 23. 内部类（4种）
+
+Java有哪几种内部类？各自的特点？
+
+**成员内部类（Member Inner Class）：**
+
+定义在类内部，作为类的成员。可以访问外部类的所有成员（包括private），持有外部类对象的隐式引用。创建：`outer.new Inner()`。
+
+```java
+class Outer {
+    private int x;
+    class Inner {
+        void print() { System.out.println(x); }  // 可直接访问外部类private字段
+    }
+}
+```
+
+**局部内部类（Local Inner Class）：**
+
+定义在**方法或代码块**中。作用域限于所在方法，可访问外部类的所有成员和方法的**final/ effectively final**局部变量。
+
+```java
+class Outer {
+    void method() {
+        int local = 10;
+        class LocalInner {
+            void print() { System.out.println(local); }
+        }
+        new LocalInner().print();
+    }
+}
+```
+
+**匿名内部类（Anonymous Inner Class）：**
+
+没有类名的内部类，在创建对象时**一次性定义**并实例化。适用于创建**只需用一次**的类（如事件监听、线程等）。Java 8后常用Lambda替代。
+
+```java
+Runnable r = new Runnable() {
+    @Override
+    public void run() { System.out.println("run"); }
+};
+// Lambda等效
+Runnable r = () -> System.out.println("run");
+```
+
+**静态内部类（Static Inner Class）：**
+
+用**static**修饰的内部类。不持有外部类对象的引用，可独立创建。不能直接访问外部类的实例成员（只能访问静态成员）。常用于辅助类定义（如Map.Entry、Builder模式）。
