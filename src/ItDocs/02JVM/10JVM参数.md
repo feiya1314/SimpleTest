@@ -1,7 +1,8 @@
-
 # 1. -Xms 和 -Xmx 的作用是什么？生产环境有什么建议？
 
 **-Xms**：堆**初始内存**（起步多少）。**-Xmx**：堆**最大内存**（上限多少）。生产建议**两者设相同**，避免动态扩容，稳定 GC、防 OOM。
+
+堆内存不能超过 -Xmx，但 JVM 进程总内存可能大于 -Xmx，因为还包括**元空间、线程栈、直接内存、Code Cache** 等 off-heap 区域。
 
 # 2. 如何排查 Java 进程内存占用过高的问题？
 
@@ -19,15 +20,15 @@
 - **MaxHeapSize**：堆最大大小
 - **NewSize / MaxNewSize**：新生代初始/最大大小
 - **OldSize**：老年代大小
-- **NewRatio**：新生代与老年代大小比率
-- **SurvivorRatio**：Eden 区与 Survivor 区的大小比率
+- **NewRatio**：新生代与老年代大小比率，默认 2（新生代:老年代 = 1:2）
+- **SurvivorRatio**：Eden 区与 Survivor 区的大小比率，默认 8（Eden:Survivor = 8:1）
 - **MetaspaceSize / MaxMetaspaceSize**：元空间初始/最大值，超过 MaxMetaspaceSize 触发 Full GC
 - **G1HeapRegionSize**：G1 区块大小，取值 1M~32M，根据最小 Heap 划分出 2048 个区块
 - **MinHeapFreeRatio / MaxHeapFreeRatio**：堆最小/最大空闲比率
 
 各区域 Usage 显示 capacity、used、free 及使用率，可判断内存水位是否正常。
 
-![jstat-gcutil示例](../assets/01Java/43811e648a4240f6a86e978886b22a0f.png)
+![jstat-gcutil示例](../assets/02JVM/43811e648a4240f6a86e978886b22a0f.png)
 
 # 4. 如何排查 Java 进程 CPU 过高的问题？
 
