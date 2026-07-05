@@ -25,6 +25,11 @@ CPU发送RFO (Request For Ownership) 消息给其他CPU
     ↓
 线程B读取时发现缓存无效，从主存重新加载
 ```
+
+![JMM volatile可见性图1](../assets/01Java/3e79838b19c644258864f910592df1cf.png)
+
+![JMM volatile可见性图2](../assets/01Java/847c68a705894c79b08d6c2f938ad8f0.png)
+
 **性能影响：**
 - volatile写比普通变量慢，因为需要插入内存屏障指令，阻止处理器乱序执行
 - 在x86架构下开销相对较小（约比普通变量慢2-3倍），在ARM等架构下更大
@@ -54,6 +59,10 @@ Happens-Before是JMM定义的偏序关系，约束了操作间的可见性和执
 - 前提是写发生在读之前，它描述的是可见性问题，而不是说写一定发生在读之前
 
 ![volatile happens-before](../assets/01Java/578119bb25854c7481ae6f7d3a681732.png)
+
+![Happens-Before相关图1](../assets/01Java/df4eb05574da44d5abd76bd20071c5cb.png)
+（如果a=1发生在读a之前，那么读a的时候一定能读到a=1）
+![Happens-Before相关图2](../assets/01Java/69e083f7799a4df199dcdfe7d8d4c9fa.png)
 
 **volatile的有序性保证：**
 ```java
@@ -203,6 +212,11 @@ CPU1: volatile read x
     ↓
     从CPU0或主存获取最新值
 ```
+
+![数据失效检测图](../assets/01Java/8eaeb128fd7b4f259a750edc81bcd2e3.png)
+
+![volatile缓存失效图](../assets/01Java/c29234a5b2ae4fdfacb508f9a3c37fed.png)
+
 **内存屏障（Memory Barrier）：**
 内存屏障是一组处理器指令，用于**禁止指令重排序、控制缓存读写顺序**。CPU和编译器为了优化性能会乱序执行指令（指令重排），内存屏障就像一堵墙，**墙两边的代码不允许互相穿插、颠倒顺序**。
 **JMM定义的4种内存屏障：**
