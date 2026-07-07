@@ -669,3 +669,40 @@ ollama run qwythos-9b
 │   └── blobs/                 # GGUF 文件索引
 └── history                    # 对话历史
 ```
+
+查看当前状态
+bash
+
+# 查看 ollama 进程是否在运行
+ps aux | grep ollama
+# 或检查 API 是否响应
+curl -s http://localhost:11434/api/tags
+关闭
+bash
+
+# 方式一：杀掉进程
+pkill ollama
+
+# 方式二：找到进程ID后杀掉
+ps aux | grep ollama
+kill <进程ID>
+启动
+bash
+
+# 前台启动（占用终端，Ctrl+C 停止）
+ollama serve
+
+# 后台启动（不占终端）
+nohup ollama serve > /tmp/ollama.log 2>&1 &
+
+# 验证启动成功
+curl http://localhost:11434/api/tags
+# 应返回 {"models":[...]} 或 {"models":[]}
+如果你用的是 ~/.local/bin/ollama（手动部署版）
+bash
+
+# 启动
+~/.local/bin/ollama serve &
+
+# 关闭
+pkill -f ollama
