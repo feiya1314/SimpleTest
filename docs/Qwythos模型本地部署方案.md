@@ -38,6 +38,8 @@ curl -sL https://huggingface.co/api/models/empero-ai/Qwythos-9B-Claude-Mythos-5-
 - 能返回 JSON 数据 → 代理生效
 - 返回空或超时 → 检查 Clash 端口或代理配置
 
+**⚠️ 实际部署踩坑**：代理仅适合小请求（API 查询）。**下载大文件（GGUF 6.4GB）时，Clash 代理会导致 `SSL: UNEXPECTED_EOF_WHILE_READING` 错误**，原因是代理对 HuggingFace CDN（us.aws.cdn.hf.co）的 TLS 处理有问题。解决方案：不经过代理，直接用 `hf-mirror.com`（国内镜像，实测 52MB/s 远快于代理）
+
 ---
 
 ## 1.2 确认 GPU 可用
@@ -91,36 +93,47 @@ nvidia-smi | grep "CUDA Version"
 
 **用途**：Ollama 是目前最流行的大模型本地运行工具，封装了 llama.cpp，提供命令行和 REST API，自动处理 GPU 加速、量化加载、模型管理等
 
+### 方法 A：自动安装脚本（推荐，需要 sudo）
+
 ```bash
 # 安装
 curl -fsSL https://ollama.com/install.sh | sh
-
-# 这一步会在后台做这些事：
-# - 下载并安装 ollama 二进制文件到 /usr/local/bin
-# - 创建 ollama 用户和 systemd 服务
-# - 配置 ollama 开机自启
-
-# 验证安装
-ollama --version
-# ollama serve   # 启动服务（如果 systemd 没自动启动）
-
-# 查看 ollama 服务状态
-sudo systemctl status ollama
-# 如果没启动：sudo systemctl start ollama
-# 设置开机自启：sudo systemctl enable ollama
-
-# 查看 ollama 使用的 GPU
-ollama ps  # 列出正在运行的模型及其 GPU 使用
 ```
 
-**如果 `curl | sh` 超时**：手动下载安装
+### 方法 B：手动安装（WSL 无 sudo 时）
+
+**实际部署**：在 WSL 上 `curl | sh` 需要 sudo 密码且无法交互输入。改用 GitHub Releases 手动部署：
+
 ```bash
-# 手动安装
-wget https://ollama.com/download/ollama-linux-amd64.tgz
-tar -xzf ollama-linux-amd64.tgz -C /usr/local
-ollama --version
+# 1. 获取最新版本号（或直接指定）
+export RELEASE_TAG=v0.31.1
+curl -L -o /tmp/ollama.tar.zst \
+  "https://github.com/ollama/ollama/releases/download/$RELEASE_TAG/ollama-linux-amd64.tar.zst"
+# 文件约 1.4GB（含所有 CUDA/CPU 依赖库）
+
+# 2. 安装 Python zstandard 后解压（tar.zst 格式）
+pip install zstandard
+python3 -c "
+import tarfile, zstandard
+dctx = zstandard.ZstdDecompressor()
+with open('/tmp/ollama.tar.zst', 'rb') as f:
+    with dctx.stream_reader(f) as reader:
+        with tarfile.open(fileobj=reader, mode='r|') as tar:
+            tar.extractall(path='/tmp/ollama_extract')
+"
+
+# 3. 复制到 ~/.local（注意：bin + lib/ollama 两个目录都要复制！）
+mkdir -p ~/.local/bin ~/.local/lib/ollama
+cp /tmp/ollama_extract/bin/ollama ~/.local/bin/
+cp -r /tmp/ollama_extract/lib/ollama/* ~/.local/lib/ollama/
+# lib/ollama/ 包含 llama-quantize、llama-server、CUDA v12/v13 库、CPU 优化库
+# 只复制 bin/ollama 会导致 ollama create 失败（找不到 llama-quantize）
+
+# 4. 启动服务
+export PATH="$HOME/.local/bin:$PATH"
 ollama serve &
-```
+# 检测服务是否启动：curl http://localhost:11434/api/tags
+# 应返回 {"models":[]}
 
 ---
 
@@ -146,8 +159,19 @@ mkdir -p ~/models
 # 下载 GGUF 文件（选一个你想要的量化级别）
 # 推荐 Q5_K_M 版本（含 MTP 加速，优先选 MTP 版）
 cd ~/models
+
+# ⚠️ 实际部署经验：不要通过 Clash 代理下载大文件！
+# HuggingFace CDN 经代理会 SSL 错误。正确的做法：
+# 1. 取消代理环境变量
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY
+# 2. 改用国内镜像 hf-mirror.com（实测 ~52MB/s，2分钟下完6.4GB）
 curl -L -o qwythos-9b-Q5_K_M.gguf \
-  https://huggingface.co/empero-ai/Qwythos-9B-Claude-Mythos-5-1M-GGUF/resolve/main/Qwythos-9B-Claude-Mythos-5-1M-MTP-Q5_K_M.gguf
+  https://hf-mirror.com/empero-ai/Qwythos-9B-Claude-Mythos-5-1M-GGUF/resolve/main/Qwythos-9B-Claude-Mythos-5-1M-MTP-Q5_K_M.gguf
+# 
+# 如果用原站需要走代理：
+# export HTTPS_PROXY=http://127.0.0.1:7897
+# curl -L -o qwythos-9b-Q5_K_M.gguf \
+#   https://huggingface.co/empero-ai/Qwythos-9B-Claude-Mythos-5-1M-GGUF/resolve/main/Qwythos-9B-Claude-Mythos-5-1M-MTP-Q5_K_M.gguf
 
 # 可用的 GGUF 文件列表（从 HuggingFace API 获取）：
 # Qwythos-9B-Claude-Mythos-5-1M-BF16.gguf          (原始精度，~18GB，显存放不下)
