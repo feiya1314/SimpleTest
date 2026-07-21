@@ -666,7 +666,12 @@ my-plugin/
 ---
 
 
-# 3. skill介绍和使用
+# 2. skill介绍和使用
+
+
+# 3. 记忆系统
+
+<https://zhuanlan.zhihu.com/p/2028587453972320705>
 
 # 3. Prompt提示词工程
 
