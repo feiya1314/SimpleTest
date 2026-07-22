@@ -668,6 +668,16 @@ my-plugin/
 
 # 2. skill介绍和使用
 
+## Skill是什么？
+
+Skill 的核心设计：渐进式加载信息公开
+
+Skill 怎么触发？
+
+Skill 放在哪里？
+
+# 3. AGENTS.md
+
 
 # 3. 记忆系统
 
