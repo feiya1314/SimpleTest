@@ -676,6 +676,8 @@ Skill 怎么触发？
 
 Skill 放在哪里？
 
+如何构建自己的skill
+
 # 3. AGENTS.md
 
 
