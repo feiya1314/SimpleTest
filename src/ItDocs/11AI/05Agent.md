@@ -752,7 +752,96 @@ Skill 放在哪里？
 
 配置文件里可写入 20\~30 个 MCP，但**单次项目启用不超过 10 个，活跃工具总数控制在 80 个以内**
 
-**为什么MCP不能延迟加载？**
+**为什么MCP不能延迟加载？底层原因是什么，为什么Skill可以？**
+
+## 核心结论
+
+- **MCP 工具是模型的"动作能力"**：模型调用工具的本质是生成一个符合预先注册的 JSON Schema 的结构化输出，工具定义必须先于调用出现在 API 请求的 `tools` 参数里——**先注册、才能调用**是硬约束
+- **Skill 是模型的"知识/流程文本"**：加载 Skill 就是往上下文追加一段文本，模型读到就能照做。文本什么时候注入都行，天然支持用多少加载多少
+
+## MCP 为什么不能渐进加载（底层原因）
+
+### 1. Function Calling 机制决定"先注册后调用"
+
+- 模型调用工具的本质：基于本次 API 请求 `tools` 参数里的工具定义（名称 + 描述 + JSON Schema），生成一个符合 schema 的 `tool_use` 结构化输出块
+- 模型**只能调用请求中已注册的工具**：即使凭工具名猜到了要调哪个工具，也无法保证参数名、类型、必填项与注册的 schema 一致，生成不了可被执行的合法调用
+- 形成**鸡生蛋问题**：要渐进加载，得先知道要用哪个工具；但模型看不到未加载工具的 schema，就没办法正确发起调用
+
+### 2. MCP 协议本身没有渐进披露设计
+
+- MCP 的抽象是：server 声明能力，client 初始化握手后通过 `tools/list` 拉取全部工具定义（协议支持 cursor 分页，但必须拉全，**没有按名查询/搜索单个工具的能力**）
+- 协议只有 `notifications/tools/list_changed` 变更通知，用于告知工具列表整体变化，同样不涉及"模型按需索要单个工具 schema"
+- 渐进披露是"模型 + 宿主"层的优化，不在协议设计范围内
+
+### 3. 工程层面：tools 位于上下文最前端，中途变动代价大
+
+- LLM API 是无状态的，每轮请求都要**全量重发** tools 列表
+- prompt 缓存前缀的顺序是 tools → system → messages，tools 在最前端，中途增删工具会让**其后的缓存全部失效**，延迟和成本明显上升，所以宿主默认策略就是会话开始时固定全量注册
+- 全量注册的代价：每个工具定义约几百 token，接几个 server 就是上万甚至数万 token；工具过多还会降低模型选工具的准确率（**工具混淆**）
+
+## 为什么 Skill 可以渐进加载
+
+1. **Skill 本质是提示词文本，不是执行契约**：SKILL.md 是 Markdown 指令文档，生效方式是**被模型读到**，而不是被结构化调用，文本注入时机完全自由
+2. **三级渐进披露设计**：
+   1. 启动时只注入每个 skill 的 name + description 元数据（每个几十 token）
+   2. 触发时模型判断相关，才把 SKILL.md 全文加载进上下文
+   3. SKILL.md 引用的 references、脚本按需读取，脚本甚至可以只执行、内容不进上下文
+3. **加载动作复用现有机制**：加载 Skill 用的是 1 个固定注册的 Skill 工具（本质是读文件），用 1 个固定工具 + 元数据清单撬动 N 个能力包的按需加载，不需要 API 层任何新能力
+
+## 举例：用户说"帮我把 GitHub issue #42 关掉"
+
+### MCP 路线
+
+1. 会话启动时 client 连接 GitHub MCP server，`tools/list` 拉回 30 个工具的完整定义，其中一个如下：
+
+```json
+{
+  "name": "close_issue",
+  "description": "Close an issue in a GitHub repository",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "owner":        { "type": "string",  "description": "仓库所有者" },
+      "repo":         { "type": "string",  "description": "仓库名" },
+      "issue_number": { "type": "integer", "description": "issue 编号" }
+    },
+    "required": ["owner", "repo", "issue_number"]
+  }
+}
+```
+
+2. 这一个工具约 100~150 token，30 个工具就是数千 token，描述更复杂、数量更多的场景合计可到数万 token——用户还没说话上下文已被吃掉一截，且之后每轮请求都原样携带
+3. 模型要输出 `tool_use: close_issue { "owner": "feiya1314", "repo": "SimpleTest", "issue_number": 42 }`，必须严格照着 `inputSchema` 才知道参数叫 `issue_number` 而不是 `number`、类型是整数、还必须带 `owner` 和 `repo`——**schema 就是模型生成调用的模板**
+
+### 反证：假设 MCP 只加载工具名会发生什么
+
+假设启动时上下文只放一行工具名清单 `create_issue, close_issue, add_comment, ...`：
+
+- 模型猜得到要用 `close_issue`，但**不知道参数格式**：是 `issue_number` 还是 `number`？要不要 `owner`？类型是数字还是字符串？
+- 瞎猜参数 → 参数名或类型对不上，调用直接失败
+- 让模型主动请求"先加载 schema" → 多一轮往返，且"请求加载工具"这个动作本身也需要一个已注册的工具来承载
+
+这就是鸡生蛋：**模型只有先看到 schema 才能正确调用，渐进加载却要求它先想调用再看到 schema**。
+
+### Skill 路线
+
+1. 启动时上下文只有一行元数据：`github-workflow: GitHub issue/PR 的日常处理流程`（30~50 token）
+2. 模型判断相关，调用 Skill 工具，系统把 SKILL.md 全文读进上下文
+3. SKILL.md 里就是一段普通文字："关闭 issue 使用 `gh issue close <编号>` 执行；关闭前先向用户确认……"
+4. 模型读完照做，全程没有任何"注册"动作——模型天生就会读文字、按文字行动
+
+## 本质区别
+
+- **工具调用是"解码时的硬约束"**：schema 必须先进上下文，模型注意力必须覆盖它，才能生成合法调用（部分推理引擎还会在解码层直接做 schema 约束）
+- **指令遵循是"读取时的软约束"**：文本什么时候进上下文都行，读到即生效
+- 生活化类比：**MCP 工具像遥控器上的按键**，按键必须物理存在才按得下去；**Skill 像菜谱**，只需知道书名和一句话简介，要做哪道菜抽出来翻开读就行
+
+## 延伸：MCP 后来怎么补上渐进加载的
+
+"不能"是默认架构下的结论，引入**间接层**就能做到：
+
+1. **Tool Search / 延迟加载（deferred tools）**：上下文只放工具名清单，模型通过一个固定注册的"搜索工具"按需拉取目标工具的完整 schema（Claude Code 的 ToolSearch 就是这个思路）
+2. **Code Execution with MCP**：把 MCP 工具包装成代码 API 文件树，模型写代码、按需 import 用到的工具，本质就是借鉴了 Skill 基于文件系统的渐进披露思路
 
 # 6. MCP和Skill 区别
 
