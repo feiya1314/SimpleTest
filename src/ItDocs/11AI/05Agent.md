@@ -669,9 +669,61 @@ my-plugin/
 
 ![](assets/image-20260726-155413-873.png)
 
-# 2. agent上下文
+# 2. Agent 上下文（Context）是什么？
 
-上下文窗口宝贵
+## 上下文的本质
+
+上下文是 LLM 的**工作记忆**：Claude Code 每次向模型发请求时，都会把当前能"看到"的全部信息打包进这一次请求。模型本身**没有持久记忆**，它的所有回答都只基于当次请求中的上下文内容。上下文窗口宝贵——它是有限资源，窗口内信息的质量直接决定回答质量。
+
+## 上下文窗口大小
+
+- Claude 模型标准是 **200K tokens** 上下文窗口
+- 部分新模型（如 Sonnet 4/4.5 系列）支持 **1M tokens** 扩展上下文（beta 能力，需显式开启）
+- Claude Code 的实际上限取决于当前配置的模型
+
+## 上下文的组成
+
+一次请求里实际装了五部分内容：
+
+1. **系统提示词与工具定义**：Claude Code 的核心指令，以及全部可用工具（Read、Bash、Edit 等）的 schema 描述
+2. **CLAUDE.md 体系**：项目根目录、用户级 `~/.claude/CLAUDE.md`、按目录嵌套的 CLAUDE.md，会话启动时注入
+3. **会话历史**：用户消息、助手回复、每次工具调用及其返回结果（文件内容、命令输出）——这是**上下文膨胀的主要来源**
+4. **环境信息**：工作目录、git 状态（分支、变更文件）、平台信息、当前日期
+5. **系统提醒（system-reminder）**：harness 注入的时效性信息，如文件被修改的通知、可用技能列表
+
+## 上下文快满时怎么办
+
+1. **自动压缩（auto-compact）**：接近窗口上限时自动触发，把此前的对话历史总结成摘要，用"摘要 + 摘要后新产生的上下文"继续工作
+2. **`/compact` 手动压缩**：可带聚焦指令，如 `/compact 重点保留数据库设计部分`，比被动等自动压缩更可控
+3. **`/clear` 彻底清空**：开始新任务时使用，会话历史清零，CLAUDE.md 等配置重新加载
+4. **用量警告**：上下文使用接近上限时，界面会显示警告提示
+
+## 提示缓存（Prompt Caching）
+
+- Claude Code 自动利用 API 的提示缓存：把请求中**静态的前缀部分**（系统提示词、工具定义、CLAUDE.md、早期对话）缓存起来
+- 默认缓存 TTL 为 **5 分钟**，命中缓存的部分大幅降低成本和延迟
+- 推论：频繁 `/clear` 或大幅切换上下文会让缓存失效，响应变慢、成本变高
+
+## 子代理的上下文包含什么（实测验证）
+
+子代理拥有**独立的全新上下文窗口**，经实证测试，其组成是：
+
+- **包含**：自己的系统提示词（由 agent 类型定义）+ **完整的 CLAUDE.md 体系** + 环境/git 信息 + 主会话传入的任务 prompt
+- **不包含**：主会话的会话历史（用户消息、工具调用结果、读过的文件内容）
+
+实测结论：测试子代理能准确引用项目 CLAUDE.md 原文；且 0 次工具调用就消耗约 **18K tokens**——这是"系统提示词 + 工具定义 + CLAUDE.md + 环境信息"的**基础上下文开销**，每个子代理都要付一遍。
+
+两个推论：
+
+- CLAUDE.md 是主会话和**每个子代理**的"基础税"，写得越精简，所有上下文都受益
+- 子代理中间的探索过程（读文件、跑命令）不占主会话上下文，只回传最终结论——这是大型任务中**保护主上下文的关键手段**（触发机制详见 # 8. Subagent介绍）
+
+## 上下文管理最佳实践
+
+- **CLAUDE.md 保持精简高密**：它每次请求都占上下文，写通用结论，细节放具体文件里按需读取
+- **任务切换用 `/clear`**：避免无关历史占用窗口
+- **大探索交给子代理**：读文件、搜代码的脏活在子上下文里做，主会话只留结论
+- **长会话主动 `/compact`**：在关键节点带聚焦指令压缩
 
 # 3. Tools
 
@@ -679,7 +731,7 @@ agent如何知道调用哪个工具
 
 有哪些，谁创造的，可以自定义吗
 
-# 2. skill介绍和使用
+# 4. skill介绍和使用
 
 ## Skill是什么？
 
@@ -694,20 +746,22 @@ Skill 放在哪里？
 构建一个优秀的skill 注意事项，
 
 
-# 3. MCP介绍
+# 5. MCP介绍
 
 配置文件里可写入 20\~30 个 MCP，但**单次项目启用不超过 10 个，活跃工具总数控制在 80 个以内**
 
-# 4. MCP和Skill 区别
+**为什么MCP不能延迟加载？**
 
-# 5. command介绍
+# 6. MCP和Skill 区别
+
+# 7. command介绍
 
 command和skill的关系
 
 command和subagent的关系
 
 
-# 5. Subagent介绍
+# 8. Subagent介绍
 
 agents 怎么触发的
 
@@ -785,9 +839,9 @@ tools: [Read, Bash]
 
 Subagent 由主 Claude Agent 在推理过程中自主决定触发，通过调用 Agent tool 将子任务发送到独立上下文窗口执行，以保护主会话上下文不被大量中间结果污染，同时支持并行处理提升效率。
 
-# 6. Rules介绍
+# 9. Rules介绍
 
-# 7. Hooks介绍
+# 10. Hooks介绍
 
 Hooks如何触发，如何保证一定会触发的
 
@@ -798,22 +852,134 @@ hooks中需要调用大模型吗？
 如何自定义hooks
 
 
-# 3. AGENTS.md
+# 11. OpenCode 有哪些与 Claude Code 对应的概念？
+
+## 一句话结论
+
+OpenCode 在概念体系上几乎是 Claude Code 的开源复刻加扩展：上下文管理、Skills、MCP、Subagents、Rules、Hooks **全部有对应物**，且直接兼容 Claude Code 的文件约定；唯一没有内建的是 **Memory 自动积累机制**。
+
+## 概念对照表
+
+| 概念 | Claude Code | OpenCode 对应物 | 差异要点 |
+| --- | --- | --- | --- |
+| **上下文管理** | auto-compact、`/compact`、`/clear` | 自动压缩（隐藏 compaction agent）+ `/compact`（别名 `/summarize`）+ `/new` 新会话 | 多了 `compaction.prune`（自动清理旧工具输出）和 `compaction.reserved`（预留 token 缓冲）配置 |
+| **Skills** | `.claude/skills/<name>/SKILL.md` | 同样的 **SKILL.md 标准**，通过原生 `skill` 工具按需加载 | 搜索路径更多（`.opencode/skills/` 等），且**直接兼容** `.claude/skills/` 和 `.agents/skills/` |
+| **MCP** | 本地/远程 MCP server | 同样支持本地 + 远程，配在 `opencode.json` 的 `mcp` 字段 | 功能基本一致；官方同样警告 MCP 工具会快速吃掉上下文 |
+| **Subagents** | Agent 工具 + `.claude/agents/*.md` | **primary agents**（Build/Plan，Tab 键切换）+ **subagents**（General/Explore/Scout，@ 提及调用） | Plan 主代理 ≈ Claude Code 的 plan mode；都可自定义 prompt、模型、工具权限 |
+| **Rules** | `CLAUDE.md` 体系 | `AGENTS.md`（项目级 + 全局），`/init` 自动生成 | 无 AGENTS.md 时**回退兼容 CLAUDE.md**；`instructions` 配置可引用 `.cursor/rules/*` 甚至远程 URL |
+| **Hooks** | settings.json 配 shell 命令钩子 | **Plugin 机制**：JS/TS 代码订阅事件 | 实现方式差异最大，见下文 |
+| **Memory** | 内建持久记忆目录 | ❌ **无内建对应物** | 最接近的是全局 AGENTS.md，但那是人写的规则，不是 agent 自动积累的记忆 |
+| **Slash commands** | skills 即命令 | `.opencode/commands/*.md` 自定义命令，可覆盖内建命令 | 命令与 skill 是两个独立机制 |
+
+## 关键实现差异
+
+### Hook 机制：配置 vs 代码
+
+- **Claude Code**：在 settings.json 声明式配置 shell 命令，事件触发时执行
+- **OpenCode**：写 JS/TS 插件文件放 `.opencode/plugins/`（或发 npm 包），返回 hooks 对象；事件体系更细，有 `tool.execute.before/after`、`session.compacted`、`permission.asked`、`file.edited` 等 20 多种，且能**直接改写工具参数**（官方示例：bash 执行前自动对命令做 escape）
+
+### 模型中立性
+
+OpenCode 是 provider 中立的（Claude、GPT、Gemini、本地模型均可），上下文窗口大小取决于所选模型；Claude Code 绑定 Anthropic 模型体系。
+
+### 明确的 Claude Code 兼容策略
+
+OpenCode 把兼容作为官方特性：CLAUDE.md、`.claude/skills/` 都能直接复用，还提供 `OPENCODE_DISABLE_CLAUDE_CODE` 系列环境变量来关闭，迁移成本基本为零。
+
+### OpenCode 独有的能力
+
+- LSP 集成、custom-tools（自定义工具）、细粒度权限系统、TUI 主题、GitHub/GitLab agent、ACP（IDE 协议）、server/SDK 模式
+
+## 一句话总结
+
+先给结论（概念几乎全有、Memory 除外），再讲两个最有区分度的差异：**Hook 从"配 shell 命令"升级为"写代码插件"**，以及 **OpenCode 的模型中立和 Claude Code 兼容策略**，最后点出 Memory 缺失正好引出下一题。
+
+# 12. OpenCode 为什么不内置 Memory？如何实现？
+
+## 先纠正前提：不是无法实现
+
+Memory 在 OpenCode 里不是"做不了"，而是"没做成内置功能"。社区已经用现有扩展机制做出了至少 4 种方案：
+
+- **opencode-claude-memory**：插件，直接复刻 Claude Code 的 memory 机制
+- **opencode-episodic-memory**：插件，只读索引 OpenCode 自己的会话数据库，本地 embedding 做语义搜索，监听 `session.idle` 事件自动重建索引
+- **Vestige**：本地 MCP memory server，存项目决策、偏好、历史修复方案
+- **opencode-project-memory**：项目级记忆插件
+
+官方 feature request（issue #16077）至今仍是 open 状态，社区还在讨论设计方案——这说明是"还没做"，不是"拒绝做"。
+
+## 为什么不内置：设计理念分析
+
+官方从未发表过"拒绝 memory"的声明（更早的同类 issue #8043 是 60 天无活动被机器人自动关闭的）。从架构设计和 issue 历史可以推断三点：
+
+### 1. 可组合原语优先，而非功能内置
+
+OpenCode 的核心设计是把一切做成扩展点：插件（JS/TS 代码）、MCP（工具）、skills（指令）、AGENTS.md（规则）。Memory 恰好可以用这些原语**组合**出来——4 个社区方案全是插件/MCP 实现、零改动核心就是证明。甚至连标题生成、上下文压缩这种基础能力，OpenCode 都实现为"隐藏 agent"而非硬编码逻辑。理念是**核心保持精简，功能由生态生长**。
+
+### 2. 模型中立的代价
+
+Claude Code 敢内置 memory，是因为 Anthropic 同时控制模型和系统提示词，能保证记忆提取与召回的质量。OpenCode 要服务能力参差的多类模型（Claude、GPT、Gemini、本地小模型），内置"自动提取记忆"很难在所有模型上保证效果——社区 issue 的标题就直接点明了这个难点："model-agnostic memory layer"。
+
+### 3. 关键洞察：memory 本质是"约定"而非"机制"
+
+Claude Code 的 memory 并没有黑科技——它就是**一个 markdown 目录 + 系统提示词里的一段使用说明**（写记忆、维护索引、按需召回）。既然是约定，任何"能把指令注入上下文"的工具都能复刻，不一定需要官方内置。
+
+## 如何实现：四种方案（成本从低到高）
+
+### 方案1：AGENTS.md 纯指令法（零代码，今天就能用）
+
+既然 memory 是约定，直接在全局 `~/.config/opencode/AGENTS.md` 里写下这套约定：
+
+```markdown
+## Memory
+你有一个持久记忆目录 ~/.config/opencode/memory/：
+- 把值得长期记住的事实写成独立的 .md 文件
+- 维护 MEMORY.md 作为一行式索引
+- 开始任务时先读索引，召回相关记忆
+```
+
+AGENTS.md 每次会话都进上下文，agent 就会照做——这正是 Claude Code memory 的完整实现原理。**缺点**：纯靠模型自觉，没有自动化和强制保证。
+
+### 方案2：Plugin 法（自动化，推荐）
+
+用插件事件把"约定"变成"机制"：
+
+1. 监听 `session.idle` 或 `session.compacted` 事件，触发记忆提取，写入 memory 文件
+2. 监听 `session.created`，把 memory 索引注入提示
+3. 用 `tool.execute.before/after` 补充记忆读写工具
+
+`opencode-claude-memory` 就是这个思路的现成实现。
+
+### 方案3：MCP 法（外部记忆服务）
+
+接入现成的 memory MCP server（Vestige、官方知识图谱 memory server、cognee 等），记忆变成 agent 可调用的 save/search 工具。
+
+- **优点**：结构化存储加语义检索，跨工具通用
+- **缺点**：MCP 工具定义本身吃上下文（OpenCode 文档明确警告过）
+
+### 方案4：语义索引法（RAG 思路）
+
+`opencode-episodic-memory` 的路线：不维护人工筛选的记忆文件，直接对**历史会话数据库建向量索引**，agent 语义搜索"我上次是怎么解决这类问题的"。这把 memory 从"精心整理的笔记"变成"可检索的经历"，是另一类设计取舍。
+
+## 一句话总结
+
+OpenCode 没有内置 memory 不是能力缺陷，而是"精简核心 + 插件生态"设计理念的体现；memory 的本质是**上下文注入约定**，可以从零代码（AGENTS.md）到插件自动化、MCP 服务、语义索引分四个层级实现。这题的核心考点是理解"**agent 能力 = 上下文工程**"这个第一性原理。
+
+# 13. AGENTS.md
 
 用户claude.md和项目claude.md区别
 
-# 3. 记忆系统
+# 14. 记忆系统
 
 <https://zhuanlan.zhihu.com/p/2028587453972320705>
 
-# 3. Prompt提示词工程
+# 15. Prompt提示词工程
 
 
-# 4. 上下文工程
+# 16. 上下文工程
 
 
-# 4. Harness驾驭工程
+# 17. Harness驾驭工程
 
 
-# 5. Loop循环工程
+# 18. Loop循环工程
 

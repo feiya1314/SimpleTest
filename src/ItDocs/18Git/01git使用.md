@@ -590,3 +590,54 @@ if (featureFlagService.isEnabled("new-search", userId)) {
 
 注意点：开关代码会增加圈复杂度，**用完必须及时清理**，否则会变成"开关坟场"，代码维护成本激增。
 
+# 22. worktree是什么，怎么使用
+
+**Git worktree（工作树）是 Git 2.5 引入的功能，允许同一个仓库同时检出多个分支到不同的目录**，每个目录就是一个工作树。所有工作树共享同一个 `.git` 仓库数据（提交历史、对象库、分支引用），只是各自检出不同的分支。
+
+## 解决什么问题
+
+默认一个仓库只有一个工作目录，同一时刻只能检出一个分支，多分支并行工作很痛苦。worktree 主要解决：
+
+- **不用 stash 来回切换**：正在开发 feature 分支，突然要修线上 bug，直接在新目录检出 hotfix 分支，两个目录互不干扰，不用 stash 或临时提交
+- **不用克隆多份仓库**：clone 两份仓库的做法占双倍磁盘，还要各自 fetch 保持同步；worktree 共享同一个 `.git`，省空间、天然同步
+- **方便对比测试和 Code Review**：同时检出新旧两个版本分别编译运行，或检出同事的分支查看，不影响手头工作
+
+## 核心原理
+
+- **主工作树**：clone 下来的原始目录，`.git` 是一个完整的目录
+- **关联工作树**：`git worktree add` 创建的目录，里面的 `.git` **是一个文件而不是目录**，内容是指向主仓库元数据的指针（如 `gitdir: /path/to/main/.git/worktrees/xxx`），每个工作树的私有元数据（HEAD、index）存放在主仓库的 `.git/worktrees/` 目录下
+- **共享的是整个仓库**：任何一个工作树里提交的 commit、创建的分支，其他工作树立即可见；hooks、config、stash 也全部共享，在一个工作树 `git stash`，另一个工作树能 `stash pop`
+
+## 常用命令
+
+1. `git worktree add ../repo-hotfix hotfix`：在 `../repo-hotfix` 目录检出已有的 `hotfix` 分支
+2. `git worktree add -b feat-x ../repo-feat origin/main`：基于 `origin/main` 创建新分支 `feat-x` 并检出到新目录
+3. `git worktree list`：查看所有工作树
+4. `git worktree remove ../repo-hotfix`：删除工作树（有未提交修改或未跟踪文件时需先处理，或加 `--force`）
+5. `git worktree prune`：手动 `rm -rf` 删除目录后，清理残留的元数据记录
+6. `git worktree lock <path>` / `git worktree unlock <path>`：锁定/解锁工作树，锁定后即使目录被删也不会被 prune（适合工作树放在 U 盘等可移动设备的场景）
+7. `git worktree move <path> <new-path>`：移动工作树位置（直接 mv 目录会导致元数据失效，需 `git worktree repair` 修复）
+
+## 搭配 AI 编码工具使用
+
+worktree 特别适合搭配 Claude Code、OpenCode 这类 AI 编码工具，因为 **AI 会话以工作目录为边界**：
+
+- **上下文隔离**：每个分支开独立工作树，各自跑一套 AI 会话，上下文互不污染，AI 不会跨分支读取文件
+- **并行开发**：同时做多个需求、一边开发一边写测试、一边改线上 bug，每个任务一套独立会话
+- **避免上下文浪费**：切分支会导致文件大面积变动，AI 需要反复重载代码库，浪费上下文；worktree 让各目录文件保持稳定
+
+标准使用流程：
+
+1. 根目录放主干 `main` 分支，用来查看线上代码、合并 PR
+2. `git worktree add -b feat-xxx ../feat-xxx` 创建新需求工作树，在该目录启动 AI 会话，`.claude/` 下的 skills、hooks、规则随分支内容走，专属当前需求
+3. `git worktree add -b hotfix-bug ../hotfix-bug` 创建 bug 修复工作树，另开一套 AI 会话
+4. 两个目录完全隔离，互不干扰
+5. 开发完毕合并代码后，`git worktree remove` 删除对应工作树即可
+
+## 注意事项
+
+- **同一个分支不能被两个工作树同时检出**，比如主工作树已在 `dev` 分支，新工作树再检出 `dev` 会报错（除非加 `--force` 或 detached HEAD）
+- **被工作树检出的分支不能直接删除**，`git branch -d` 会报 `Cannot delete branch ... checked out at ...`，需先 remove 对应工作树
+- 新工作树**只包含 Git 跟踪的文件**，`node_modules`、`.env` 等被 gitignore 的文件不会带过去，需要重新安装依赖、复制配置
+- 手动 `rm -rf` 删除目录后，记得 `git worktree prune` 清理，否则 `git worktree list` 会残留无效记录
+
