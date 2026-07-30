@@ -669,7 +669,7 @@ my-plugin/
 
 ![](assets/image-20260726-155413-873.png)
 
-# 2. Agent 上下文（Context）是什么？
+# 2. Agent 上下文是什么？
 
 ## 上下文的本质
 
@@ -686,10 +686,12 @@ my-plugin/
 一次请求里实际装了五部分内容：
 
 1. **系统提示词与工具定义**：Claude Code 的核心指令，以及全部可用工具（Read、Bash、Edit 等）的 schema 描述
-2. **CLAUDE.md 体系**：项目根目录、用户级 `~/.claude/CLAUDE.md`、按目录嵌套的 CLAUDE.md，会话启动时注入
-3. **会话历史**：用户消息、助手回复、每次工具调用及其返回结果（文件内容、命令输出）——这是**上下文膨胀的主要来源**
-4. **环境信息**：工作目录、git 状态（分支、变更文件）、平台信息、当前日期
-5. **系统提醒（system-reminder）**：harness 注入的时效性信息，如文件被修改的通知、可用技能列表
+
+**CLAUDE.md 体系**：项目根目录、用户级 `~/.claude/CLAUDE.md`、按目录嵌套的 CLAUDE.md，会话启动时注入
+
+1. **会话历史**：用户消息、助手回复、每次工具调用及其返回结果（文件内容、命令输出）——这是**上下文膨胀的主要来源**
+2. **环境信息**：工作目录、git 状态（分支、变更文件）、平台信息、当前日期
+3. **系统提醒（system-reminder）**：harness 注入的时效性信息，如文件被修改的通知、可用技能列表
 
 ## 上下文快满时怎么办
 
@@ -725,11 +727,401 @@ my-plugin/
 - **大探索交给子代理**：读文件、搜代码的脏活在子上下文里做，主会话只留结论
 - **长会话主动** `/compact`：在关键节点带聚焦指令压缩
 
-# 3. Tools
+# 3. Tool 机制介绍
 
-agent如何知道调用哪个工具，大模型怎么知道有哪些工具，怎么知道调用哪些工具
+## 3.1 Tool 是什么？为什么需要 Tool？
 
-有哪些，谁创造的，可以自定义吗，这些tool都需要在上下文中传给大模型吗，在初次调用的时候就传吗
+**Tool（工具）** 是 Agent 可以调用的外部函数/API，本质上是 **大模型与外部世界交互的桥梁**。Tools 是连接大语言模型（LLM）与现实世界的“感官”与“肢体”
+
+**为什么需要 Tool？** 大模型本身有几个天然局限：
+
+- **知识截止**：训练数据有截止日期，不知道最新信息
+- **无法执行精确计算**：数学计算、字符串处理等容易出错
+- **无法感知实时状态**：不知道当前时间、天气、股票价格
+- **无法操作外部系统**：不能查数据库、调 API、读写文件、执行命令
+- **无法采取实际行动**：不能发送邮件、创建工单、部署代码
+
+**例子**：用户问"帮我查下今天北京的天气"——模型再强，不调用天气 API 它不可能知道。Tool 就是让模型能"伸手"去做这些事。
+
+---
+
+## 3.2 有哪些常见的 Tool？
+
+按功能分类：
+
+| 类别 | 示例 | 作用 |
+| --- | --- | --- |
+| **信息检索** | WebSearch, WebFetch, 数据库查询 | 获取实时/外部信息 |
+| **文件操作** | Read, Write, Edit, 文件搜索 | 读写修改文件系统 |
+| **代码执行** | Bash, Python 解释器, NotebookEdit | 运行代码、执行命令 |
+| **网络请求** | HTTP GET/POST, API 调用 | 与外部服务交互 |
+| **工具链** | Git 操作, Docker, 云服务 CLI | 开发运维操作 |
+| **通信** | SendMessage, PushNotification | Agent 间通信、通知用户 |
+| **编排** | Agent（启动 Subagent）, Workflow | 任务分解与并行执行 |
+| **结构化输出** | 定义 JSON Schema | 让模型输出结构化数据 |
+
+---
+
+## 3.3 Agent / 大模型怎么知道有哪些 Tool？
+
+这是通过 **注册（Registration）+ 注入（Injection）** 机制实现的，分两个层面：
+
+### 3.3.1 注册（Registration）
+
+Tool 在系统启动时注册到 Agent 框架中，每个 Tool 的元信息包括：
+
+- **名称**（name）：唯一标识
+- **描述**（description）：自然语言描述，**这是最重要的部分**，模型靠它判断何时调用
+- **参数 Schema**（parameters / inputSchema）：JSON Schema 格式的参数定义
+- **返回值定义**（return type）
+
+### 3.3.2 注入（Injection）
+
+**每次调用大模型时**，所有可用 Tool 的定义（名称 + 描述 + 参数 Schema）被序列化后**拼入 API 请求的** `tools` 参数一起发给大模型。大模型看到的**只是工具的"说明书"，不是工具的实现代码**——它只知道这个工具叫啥、能干啥、需要什么参数，不知道背后怎么实现的。
+
+**关键**：这些 Tool 定义必须在**初次调用时就传入**，不能在对话中途动态添加。原因是 LLM API 是无状态的，每轮请求都要全量重发 tools 列表；tools 位于上下文最前端（顺序是 tools → system → messages），中途增删工具会让其后的缓存全部失效。
+
+---
+
+## 3.4 大模型怎么决定调用哪个 Tool？（Function Calling 原理）
+
+这是通过 **Function Calling（函数调用）** 机制实现的，核心流程分为 **6 个步骤**：
+
+### Step 1：注册与注入
+
+开发者把工具描述放在 API 的 `tools` 参数里传给模型，每个工具包含 `name`、`description`、`parameters`（参数 Schema）：
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [{"role": "user", "content": "北京天气"}],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "查询天气",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "city": {"type": "string"}
+          },
+          "required": ["city"]
+        }
+      }
+    }
+  ]
+}
+```
+
+### Step 2：模型匹配与切换模式
+
+模型在推理时，看到用户请求（如"北京天气"），通过 `description` 匹配到 `get_weather` 工具。关键机制是：模型在训练时学会了一个**特殊 token**，表示"接下来我要输出工具调用"。这个 token 触发模型从"自然语言生成模式"切换到 **"工具调用模式"**，输出结构化的 JSON 而不是自然语言。
+
+### Step 3：API 返回 Tool Call
+
+API 返回的 response 中，`content` 为 `null`，取而代之的是 `tool_calls` 字段，包含调用的工具名称和参数：
+
+```json
+{
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [{
+        "id": "call_abc123",
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "arguments": "{\"city\": \"北京\"}"
+        }
+      }]
+    }
+  }]
+}
+```
+
+### Step 4：框架拦截与执行
+
+Agent 框架检测到 `tool_calls`，拦截它，解析出工具名称和参数，去调用真实的 API/函数。
+
+### Step 5：结果回传
+
+把 API 返回的结果以 tool role 塞回给模型：
+
+```json
+{
+  "role": "tool",
+  "tool_call_id": "call_abc123",
+  "content": "北京，25°C，晴"
+}
+```
+
+**OpenAI** 用 `role: "tool"`，**Anthropic** 用 `role: "user"` + `content[].tool_result`，但底层逻辑完全一致。
+
+### Step 6：模型整合回复
+
+模型看到工具返回的结果，继续推理，最终用自然语言回复用户："北京今天 25 度，天气晴朗。"
+
+### OpenAI 与 Anthropic 的关键差异
+
+| 维度 | OpenAI | Anthropic (Claude) |
+| --- | --- | --- |
+| API 参数名 | `tools` | `tools` |
+| 参数中的参数字段 | `parameters` | `input_schema` |
+| 输出字段 | `tool_calls[].function` | `content[].tool_use` |
+| 参数格式 | `arguments` (JSON string) | `input` (JSON object) |
+| 结果回传 | `role: tool` | `role: user` + `tool_result` |
+
+但**底层原理完全一样**——都是把工具定义传给模型，模型输出结构化的调用指令，系统拦截执行，结果喂回去。
+
+---
+
+## 3.5 Tool 由谁触发？什么时候触发？
+
+整个流程可以用这个图表示：
+
+```
+用户请求
+    ↓
+大模型推理 ──→ 决定需要调用工具
+    ↓
+输出 Tool Call 特殊格式响应
+    ↓
+Agent 框架拦截 → 解析 → 查找注册表 → 执行实际函数
+    ↓
+工具执行结果返回给大模型
+    ↓
+大模型整合后回复用户
+```
+
+**触发者：大模型（LLM）**
+
+- 大模型**决定**要不要调用工具、调用哪个、传什么参数
+- 这是通过 Function Calling 机制实现的，模型在生成文本时可以选择输出 Tool Call 格式
+
+**执行者：Agent 框架（Runtime）**
+
+- Agent 框架**执行**实际工具函数
+- 框架负责解析模型输出的 Tool Call、调用对应函数、传参、拿回结果
+
+**触发时机：**
+
+- 模型在生成回复时，如果判断需要外部信息或操作才能回答用户，就会触发 Tool Call
+- 一个对话中可以多次调用工具，也可以同时调用多个工具（并行调用）
+
+**比喻理解**：
+
+> 大模型就像一个**项目经理**，他知道团队里有哪些工程师（工具）、每个工程师会什么（描述），但他自己不干活。当任务需要时，他在任务单上写"张三做 XX 事"（Tool Call），然后**Agent 框架就是行政**，拿着任务单去找对应的工程师干活，把结果汇报给项目经理。
+
+---
+
+## 3.6 Agent 框架的作用
+
+**没有 Agent 框架时**，你需要手动做这一切：
+
+- 手动传 `tools` 参数 → 手动检测 `tool_calls` → 手动调真实 API → 手动把结果塞回去 → 手动写循环
+
+**有 Agent 框架时**（如 Claude Code、LangChain、AutoGen），框架自动化了这个循环：
+
+- Claude Code 自动传 `tools` 参数（Read、Edit、Bash 等）
+- → 自动拦截 `tool_use`
+- → 自动执行真实的 Read/Edit/Bash
+- → 自动把结果塞回去
+- → 自动循环
+
+你看不到这个循环，因为框架替你做了。
+
+---
+
+## 3.7 MCP 是 Tool 的一种吗？
+
+**不是。MCP 不是 Tool，而是一种协议/标准。**
+
+准确的关系是这样的：
+
+```
+MCP 协议 (Model Context Protocol)
+  ├── 定义了如何提供 Tool
+  ├── 定义了如何提供 Resource（数据资源）
+  └── 定义了如何提供 Prompt（模板提示词）
+```
+
+**MCP Server** 通过 MCP 协议对外暴露 Tool，但 MCP 本身不是 Tool。
+
+**类比理解**：
+
+> **Tool** 就像一个个具体的电器——电饭煲、洗衣机、电视机。
+> **MCP** 就像国家标准的**三孔插座协议**——它规定了怎么供电、怎么插拔、怎么通信。
+> 你可以在 MCP 插座上插各种 Tool 电器，但插座本身不是电器。
+
+具体区别：
+
+|  | Tool | MCP |
+| --- | --- | --- |
+| **本质** | 一个可调用的函数 | 一个通信协议标准 |
+| **作用** | 执行具体操作（读文件、搜网页） | 标准化 Tool 的注册、发现、调用方式 |
+| **例子** | `Read`, `WebSearch`, `Bash` | MCP Server 通过 MCP 协议暴露 `Read` 等工具 |
+
+**所以在 Claude Code 里：** `Read`、`Edit`、`Bash` 这些是 **Tool**，它们是通过 **MCP 协议**暴露给 Agent 的，但 MCP 本身不是 Tool。
+
+---
+
+## 3.8 Skill 能作为 Tool 吗？
+
+**不能。Skill 不是 Tool，它们处于完全不同的层面。**
+
+核心区别在于**是否通过 Function Calling 机制调用**：
+
+| 维度 | Tool | Skill |
+| --- | --- | --- |
+| **调用方式** | Function Calling（模型输出 Tool Call） | 注入 System Prompt / 修改指令 |
+| **触发者** | 大模型自主决定调用 | 用户主动输入 `/skill名` 触发 |
+| **参数传递** | 有参数 Schema，结构化传参 | 无参数 Schema，自然语言传参 |
+| **返回值** | 有结构化返回值，喂回模型 | 执行后直接输出结果给用户 |
+| **注册方式** | 注册 name + description + parameters | 定义指令文本 + 触发关键词 |
+
+**Skill 的本质**：是一段预定义的**指令/提示词模板**，当用户输入 `/skill名` 时，这段指令被加载到当前对话上下文中，**改变模型的行为方式**。它不是通过 Function Calling 机制调用的。
+
+**为什么不能当 Tool 用？**
+
+- Tool 需要大模型在推理时**自主判断"要不要调用"**——模型看到用户说"查天气"，匹配到 `get_weather` 的描述，决定调用它
+- Skill 需要用户**主动输入触发**——模型不会在推理时突然决定"哦，我该加载一个 Skill"
+
+---
+
+## 3.9 可以自己创建 Tool 吗？
+
+**可以。** 创建自定义 Tool 是 Agent 开发中最核心的扩展能力。不同场景下方式不同：
+
+### 在 Claude Code 中创建自定义 Tool
+
+通过 **MCP Server** 添加自定义 Tool：
+
+```javascript
+// my-mcp-server.js — 一个最简单的 MCP Server
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+
+const server = new Server({
+  name: 'my-custom-tools',
+  version: '1.0.0'
+}, {
+  capabilities: { tools: {} }
+})
+
+// 注册一个 Tool
+server.setRequestHandler('tools/list', async () => ({
+  tools: [{
+    name: 'send_email',
+    description: '发送邮件',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: '收件人邮箱' },
+        subject: { type: 'string', description: '邮件主题' },
+        body: { type: 'string', description: '邮件正文' }
+      },
+      required: ['to', 'subject']
+    }
+  }]
+}))
+
+// 实现 Tool 的执行逻辑
+server.setRequestHandler('tools/call', async (request) => {
+  if (request.params.name === 'send_email') {
+    const { to, subject, body } = request.params.arguments
+    // 调用真实的邮件 API...
+    return { content: [{ type: 'text', text: '邮件发送成功' }] }
+  }
+})
+```
+
+然后在 Claude Code 的配置中声明：
+
+```json
+{
+  "mcpServers": {
+    "my-custom-tools": {
+      "command": "node",
+      "args": ["path/to/my-mcp-server.js"]
+    }
+  }
+}
+```
+
+### 在 OpenAI API 中创建自定义 Tool
+
+直接在 API 调用时定义：
+
+```python
+import openai
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_price",
+            "description": "查询股票实时价格",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "股票代码"}
+                },
+                "required": ["symbol"]
+            }
+        }
+    }
+]
+
+response = openai.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "苹果股价多少？"}],
+    tools=tools
+)
+```
+
+### 在 LangChain 中创建
+
+```python
+from langchain.tools import tool
+
+@tool
+def get_stock_price(symbol: str) -> str:
+    """查询股票实时价格"""
+    import yfinance as yf
+    stock = yf.Ticker(symbol)
+    price = stock.history(period="1d")["Close"].iloc[-1]
+    return f"{symbol} 当前价格: ${price:.2f}"
+```
+
+### 创建一个 Tool 需要什么？
+
+无论哪种方式，都需要提供**三个核心信息**：
+
+| 要素 | 作用 | 例子 |
+| --- | --- | --- |
+| **name** | 唯一标识，模型用它来引用 | `"get_stock_price"` |
+| **description** | **最重要的**——模型靠它判断何时调用 | `"查询股票实时价格"` |
+| **parameters/inputSchema** | 参数定义，模型知道传什么参数 | `{ symbol: "AAPL" }` |
+
+**description 的质量直接决定模型会不会正确调用这个 Tool。** 描述得越清晰，模型在推理时越能准确匹配。
+
+### 总结
+
+| 平台/框架 | 创建方式 | 复杂度 |
+| --- | --- | --- |
+| **Claude Code** | 写 MCP Server | 中 |
+| **OpenAI API** | 直接传 tools 参数 | 低 |
+| **LangChain** | `@tool` 装饰器 | 低 |
+| **AutoGen** | 注册函数对象 | 低 |
+
+**核心不变：** 不管用什么方式，本质都是注册 name + description + parameters，让大模型在推理时能发现并调用它。
+
+---
+
+## 3.10 一句话总结
+
+**Tool 是大模型连接外部世界的接口，通过 Function Calling 机制——模型根据工具描述输出结构化调用指令，Agent 框架拦截执行并将结果喂回模型完成循环——让大模型从"只能说话"变成"能做事"。**
 
 # 4. skill介绍和使用
 
