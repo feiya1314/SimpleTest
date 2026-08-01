@@ -816,9 +816,13 @@ Tool 在系统启动时注册到 Agent 框架中，每个 Tool 的元信息包�
 
 模型在推理时，看到用户请求（如"北京天气"），通过 `description` 匹配到 `get_weather` 工具。关键机制是：模型在训练时学会了一个**特殊 token**，表示"接下来我要输出工具调用"。这个 token 触发模型从"自然语言生成模式"切换到 **"工具调用模式"**，输出结构化的 JSON 而不是自然语言。
 
-### Step 3：API 返回 Tool Call
+### Step 3：API 返回 Tool Call（这样可以准确返回格式化的Json信息，如果用提示词约束，大模型会遗忘，返回不标准的json格式）
 
-API 返回的 response 中，`content` 为 `null`，取而代之的是 `tool_calls` 字段，包含调用的工具名称和参数：
+API 返回的 response 中，`content` 为 `null`，取而代之的是 `tool_calls` 字段， **包含调用的工具名称和参数** ：
+
+这一步最关键的是参数提取，大模型分析后知道调用哪个Tool，如果直接返回给agent，没有参数agent也无法调用，还需要大模型知道这个函数用哪些参数，大模型才能提取参数，告诉agent 调用哪个方法，参数是什么，agent才能调用。
+
+**所以如果tools参数中没有工具的完整 schema信息，大模型无法进行方法调用**
 
 ```json
 {
@@ -841,7 +845,7 @@ API 返回的 response 中，`content` 为 `null`，取而代之的是 `tool_cal
 
 ### Step 4：框架拦截与执行
 
-Agent 框架检测到 `tool_calls`，拦截它，解析出工具名称和参数，去调用真实的 API/函数。
+Agent **框架检测到** `tool_calls`**，拦截它，解析出工具名称和参数，去调用真实的 API/函数。**
 
 ### Step 5：结果回传
 
@@ -1052,6 +1056,12 @@ MCP 协议 (Model Context Protocol)
 
 **所以在 Claude Code 里：** `Read`、`Edit`、`Bash` 这些是 **Tool**，它们是通过 **MCP 协议**暴露给 Agent 的，但 MCP 本身不是 Tool。
 
+
+MCP tool 和内置 tool 在结构上没有区别，都是名字 + 描述 + JSON Schema。区别只在于是谁提供的：内置 tool 是产品代码里写死的，MCP tool 是外部 server 动态注册的。
+
+接入 GitHub MCP server，Agent 就能创建 issue、合并 PR；接入一个数据库 MCP server，Agent 就能执行 SQL 查询。会话启动时 client 连接 GitHub MCP server，`tools/list` 拉回 30 个工具的完整定义
+
+
 ---
 
 ## 3.8 Skill 能作为 Tool 吗？
@@ -1206,7 +1216,37 @@ def get_stock_price(symbol: str) -> str:
 
 ---
 
-## 3.10 一句话总结
+## 3.10 Tools优化 Tool Search
+
+tool search 是一个用于“按需加载工具定义”的内置工具。默认情况下，所有工具的完整定义（名字 + 描述 + JSON Schema）都会放进每次请求的 tools 数组里。tool search 改变了这个策略： **只在系统提示里放一份工具名字清单，不放完整定义；当模型判断需要调用某个工具时，先通过内置的 toolSearch 工具加载该工具的完整 schema，下一轮再执行调用。**
+
+模型仍然知道有哪些工具——系统提示里列出了所有工具的名字。但每个工具的完整定义（描述 + JSON Schema）不会预先放进请求，而是等模型实际要调用时再加载。
+
+按需加载具体如何实现， **主要有以下几个步骤：**
+
+**第一步：** 客户端照常从 MCP server 全量拿到工具。
+
+tools/list 接口还是全量返回。客户端启动时从每个 MCP server 拉到所有工具的完整定义——名字、描述、JSON Schema——全部存在本地内存里。这一步和没有 tool search 时完全一样。
+
+**第二步：** 只把工具名字告诉模型。
+
+完整的工具 schema 不放进请求的 tools 数组。工具名字按 server 分组，写在 **系统提示** 的 ## Deferred Tools 段里。模型每轮都能看到这份名字清单，知道有哪些工具可用，但看不到每个工具接受什么参数。
+
+**第三步：** 给模型一个内置的 toolSearch 工具。
+
+当模型需要调用某个 deferred 工具时，它先调用 toolSearch，传入关键词或工具名。客户端在内存里的工具目录上做匹配，把命中 **的工具加入下一轮请求的 tools 数组。** 模型在下一轮就能像调任何普通工具一样调用它。
+
+这里有两种方式告知搜索的Tool的schema信息
+
+- **第二轮注册，** 模型调用 ToolSearch 拿到 schema → Agent 框架在下一轮请求中 **动态添加到 tools 参数**  → 模型在下一轮看到这个工具，正常调用。
+- **泛化调用工具** （更常见的做法），不动态修改 tools 参数，而是额外注册一个泛化的"执行工具"，专门执行通过 ToolSearch 发现的工具：
+
+Claude Code 采用的是方式一的变体——即 Deferred Tools（延迟加载工具）
+
+
+![](assets/image-20260801-224107-166.png)
+
+## 3.11 一句话总结
 
 Tool 是大模型连接外部世界的接口，通过 Function Calling 机制——模型根据工具描述输出结构化调用指令，Agent 框架拦截执行并将结果喂回模型完成循环——让大模型从"只能说话"变成"能做事"。
 
@@ -1241,9 +1281,18 @@ skill 的内容确实就是提示词，这个没错。但区别不在内容，�
 
 配置文件里可写入 20\~30 个 MCP，但**单次项目启用不超过 10 个，活跃工具总数控制在 80 个以内**
 
-**为什么MCP不能延迟加载？底层原因是什么，为什么Skill可以？**
+## MCP工作流程
 
-## 核心结论
+todo
+
+## 大模型如何知道有哪些MCP
+
+todo
+
+
+## **为什么MCP不能延迟加载？底层原因是什么，为什么Skill可以？**
+
+核心结论
 
 - **MCP 工具是模型的"动作能力"**：模型调用工具的本质是生成一个符合预先注册的 JSON Schema 的结构化输出，工具定义必须先于调用出现在 API 请求的 `tools` 参数里——**先注册、才能调用**是硬约束
 - **Skill 是模型的"知识/流程文本"**：加载 Skill 就是往上下文追加一段文本，模型读到就能照做。文本什么时候注入都行，天然支持用多少加载多少
@@ -1857,7 +1906,7 @@ hooks中需要调用大模型吗？
 如何自定义hooks
 
 
-# 11. OpenCode 有哪些与 Claude Code 对应的概念？
+# 11. OpenCode 与 Claude Code 对应的概念？
 
 ## 一句话结论
 
