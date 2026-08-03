@@ -1295,33 +1295,407 @@ skill 的内容确实就是提示词，这个没错。但区别不在内容，�
 
 ## MCP是什么
 
+**MCP（Model Context Protocol，模型上下文协议）是 Anthropic 于 2024 年 11 月开源的一种标准化的通信协议**。它规定了 AI Agent（客户端）如何与外部系统（服务端）建立连接、交换工具列表、获取数据，让大模型能以统一的方式发现并调用外部能力。
+
+**类比理解**：MCP 之于 AI 应用，就像 **USB-C 之于电子设备**——不管什么厂商的设备、什么厂商的电脑，只要都遵循 USB-C 标准就能互联；不管什么 AI 应用、什么外部系统，只要都实现 MCP 就能即插即用。
+
+几个关键认知：
+
+- **解决的核心问题是 M×N 碎片化**：没有标准时，M 个 AI 应用接 N 个外部系统要定制 M×N 套集成，MCP 把它降为 M+N（详见下一节）
+- **开放协议、不绑定 Anthropic**：OpenAI、Google、微软等主流厂商随后都宣布支持，使 MCP 成为事实标准
+- **MCP 不是 Tool，而是协议**：它定义了如何对外提供 Tool、Resource、Prompt 三类能力（详见 3.7 节）
+- **MCP 与 Function Calling 是互补关系**：Function Calling 是模型层能力——模型按 tools 参数中的 schema 输出结构化调用指令；MCP 是应用层协议——解决工具定义从哪来、调用请求发给谁执行。MCP 负责「发现和连接」，Function Calling 负责「决策和调用」
+
+**面试一句话总结**：MCP 是 Anthropic 开源的开放标准协议，像 USB-C 一样统一了 AI 应用与外部系统的连接方式，双方各实现一次协议即可即插即用，解决了集成的 M×N 碎片化问题。
 
 ## 为什么需要MCP，解决什么问题
 
+### 没有 MCP 之前，接外部系统有多麻烦
+
+以给 Agent 加一个「查天气」能力为例，没有 MCP 时需要自己做三件事：
+
+1. 自己写代码实现 `get_weather` 函数（调真实的天气 API）
+2. 按所用模型要求的 JSON Schema 格式，把工具描述**硬编码**在自己的 Agent 代码里
+3. 当模型决定调用时，自己的 Agent 负责拦截请求、执行函数、把结果喂回模型
+
+### 这样做的痛点
+
+- **不可复用**：明天想在另一个项目里用这个天气工具，只能把代码复制过去，项目多了同一份逻辑到处都是
+- **格式不通用**：按 OpenAI 格式写的 Schema，朋友用 Claude 就得改写成 Claude 支持的格式（两家格式差异见 3.4 节），工具绑死在特定平台上
+- **维护噩梦**：工具到上百个时，Agent 代码里塞满工具定义和对接逻辑，任何外部 API 变动都要改多处，代码变成难以维护的"屎山"
+
+本质上这就是 **M×N 问题**：M 个 AI 应用接 N 个外部系统，要定制 M×N 套集成。
+
+### MCP 怎么解决
+
+MCP 给 AI 工具制定了**统一的「USB 接口标准」**：
+
+- 把天气工具包装成一个 **MCP Server** 后，不管是 Cursor、Claude Desktop 还是自研 Agent，只要支持 MCP 协议，「插上」就能**自动发现并使用**这个工具——**不需要修改一行 Agent 代码**
+- AI 应用侧只需实现一次 MCP Client，外部系统侧只需实现一次 MCP Server，集成复杂度从 **M×N 降为 M+N**
+
+带来的变化：
+
+| 维度 | 没有 MCP | 有了 MCP |
+| --- | --- | --- |
+| 工具复用 | 复制代码到每个项目 | 一个 Server 被所有支持 MCP 的 Host 直接使用 |
+| 平台兼容 | 换模型要重写 Schema | 协议统一，与具体模型厂商无关 |
+| 新增能力 | 改代码、发版 | 配置里加一个 Server，即插即用 |
+| 生态 | 各家闭门造车 | 官方+社区共享大量现成 Server（GitHub、Postgres、Slack 等），拿来即用 |
+
+**面试一句话总结**：MCP 解决的是 AI 应用与外部工具集成的碎片化和不可复用问题：没有它时，每个工具都要按特定模型的格式硬编码进每个 Agent，换项目要复制、换平台要重写、工具多了就是维护灾难；MCP 像 USB 标准一样统一了接口，工具做成 MCP Server 后任何支持 MCP 的 Agent 插上即用，集成复杂度从 M×N 降到 M+N。
+
+## MCP包含哪些内容（角色）
+
+### 整体架构：三个角色
+
+MCP 采用经典的**客户端-服务端架构**，一次完整交互里有三个角色：
+
+| 角色 | 是什么 | 职责 | 举例 |
+| --- | --- | --- | --- |
+| **Host（宿主）** | 运行大模型的 AI 应用本体 | 承载模型、管理多个 Client、决定调用哪个工具 | Claude Code、Claude Desktop、Cursor |
+| **Client（客户端）** | Host 内部的连接模块，**与每个 Server 一一对应** | 与 Server 建立连接、握手、拉取工具列表、转发调用请求 | Claude Code 里每配置一个 MCP Server，内部就创建一个对应的 Client |
+| **Server（服务端）** | 轻量的独立程序，对外暴露能力 | 通过协议向 Client 提供 Tools/Resources/Prompts | GitHub MCP Server、Postgres MCP Server、文件系统 Server |
+
+**为什么 Client 和 Server 一一对应**：一个 Host 通常要同时接多个外部系统（比如同时接 GitHub 和数据库），每个连接独立握手、独立维护会话，所以 Host 内部为每个 Server 起一个专属 Client，互不干扰。
+
+### Server 提供的三种能力（协议的三类原语）
+
+MCP Server 不止能提供工具，协议一共定义了三种能力：
+
+1. **Tools（工具）**：可执行的函数，模型可以发起调用，最常用。例：GitHub Server 的 `create_issue`、数据库 Server 的 `query_sql`
+2. **Resources（资源）**：可读取的数据，类似只读的文件或 API 返回值，由 Host 决定何时读进上下文。例：本地文件内容、数据库表结构
+3. **Prompts（提示词模板）**：Server 预置的提示词模板，选用后填充参数使用。例：「代码审查报告」模板，填入 PR 编号即可生成结构化审查 prompt
+
+### 协议本身的两个技术要素
+
+- **消息格式**：基于 **JSON-RPC 2.0**，所有请求/响应/通知都是 JSON 结构，如 `tools/list`、`tools/call`
+- **传输层**：两种方式——**stdio**（本地模式，Host 把 Server 作为子进程启动）和 **Streamable HTTP / SSE**（远程模式，通过网络连接部署在别处的 Server）
+
+### 举例：完整串一遍
+
+用户在 Claude Code 里配置了一个 GitHub MCP Server：
+
+1. **启动**：Claude Code（Host）为 GitHub Server 创建专属 Client，通过 stdio 启动 Server 子进程，完成握手
+2. **能力发现**：Client 调用 `tools/list`，拉回到 30 个工具定义（`create_issue`、`close_issue` 等），注册进模型请求的 tools 参数
+3. **调用**：用户说「把 issue #42 关掉」，模型输出 `close_issue` 的 tool call → Host 让对应 Client 把 `tools/call` 转发给 GitHub Server → Server 调 GitHub API 执行 → 结果沿原路回传给模型
+4. 模型整合结果回复用户：「已关闭 issue #42」
+
+**面试一句话总结**：MCP 包含**三个角色**——运行模型的 Host、与 Server 一一对应的 Client、暴露能力的轻量 Server；Server 能提供**三类原语**——可执行的 Tools、可读取的 Resources、可复用的 Prompts 模板；通信基于 **JSON-RPC 2.0**，传输支持本地 stdio 和远程 HTTP 两种方式。
 
 ## MCP工作流程
 
-todo
+整个流程可分为**五个阶段**，以「Cline（Host）接入一个天气 MCP Server，用户问纽约天气」为例：
 
-协议流程
+1. **启动与连接**：Host（Cline）根据配置**启动 MCP Server**（本地 stdio 模式下，Server 是 Host 拉起的子进程；远程模式则建立 HTTP 连接），Host 内部创建对应的 Client 与之通信
+2. **初始化握手**：Client 与 Server 互相「自报家门」，协商协议版本、确认双方能力（详细过程见下一节）
+3. **能力发现**：Client 调用 **`tools/list`** 向 Server 询问「你有啥工具呀」，Server 返回全部工具定义（名称 + 描述 + 参数 JSON Schema），同理还有 `resources/list`、`prompts/list`
+4. **用户提问 + 模型决策**：Host 把**用户问题 + 所有工具定义**一起发给模型（即 3.4 节的 Function Calling 注入），模型推理后决定调用 `get_forecast`，输出结构化 tool call
+5. **执行与结果回传**：Host 拦截 tool call，让 Client 向 Server 发 **`tools/call`** → Server 调真实天气 API 执行 → 结果沿原路返回 → Host 把结果喂回模型 → 模型整合生成自然语言回复用户
 
-MCP协议握手过程
+整个交互的时序图如下（四方：用户、MCP Server、Cline、模型）：
 
 ![](assets/image-20260802-141750-851.png)
 
+两个关键认知：
+
+- **模型自始至终没有直接碰 Server**：模型只输出「我要调用 get_forecast」这段结构化文本，真正的网络请求、API 执行全是 Host/Client 干的——**模型是决策者，Host 是执行者**
+- **MCP 只覆盖「Client ↔ Server」这一段**：模型怎么选工具是 Function Calling 的事（3.4 节），用户怎么和 Host 交互是产品的事，MCP 管的是中间「发现能力 + 转发调用 + 回传结果」这条标准链路
+
+**面试一句话总结**：MCP 工作流程分五步：**Host 启动 Server → 双方握手协商能力 → `tools/list` 拉取工具定义 → 工具定义随用户问题一起发给模型、模型输出 tool call → Host 经 Client 转发 `tools/call` 给 Server 执行，结果回传模型生成最终回复**。全程模型只负责决策，真正的执行由 Host 和 Server 完成。
+
+## MCP协议握手过程
+
+### 握手的本质
+
+MCP 底层基于 **JSON-RPC 2.0**，握手本质上是 Client 和 Server 之间交换三条特定格式的 JSON 消息，完成两件大事：**协议版本协商**和**能力（Capabilities）交换**。整个过程严格按顺序分三步：
+
+### 第一步：Client 发起 initialize 请求
+
+通信通道（stdio 或 HTTP/SSE）建立后，Client（如 Claude Desktop）首先向 Server 发送 `initialize` 请求，**告知自己的身份、期望的协议版本和自身能力**。核心字段：
+
+- **`protocolVersion`**：Client 支持的协议版本，如 `"2024-11-05"`
+- **`clientInfo`**：Client 的名称和版本号
+- **`capabilities`**：Client 能提供给 Server 的功能，例如 `roots`（允许 Server 知道 Client 所处的工作区目录）、`sampling`（允许 Server **反向请求大模型**生成内容）
+
+### 第二步：Server 返回响应
+
+Server 校验请求后返回成功响应，**确认连接并声明自己能提供什么**：
+
+- **版本协商**：检查 Client 发来的 `protocolVersion`，兼容则返回最终确定的版本号
+- **`serverInfo`**：Server 的名称和版本号
+- **`capabilities`**：**整个握手最关键的部分**——Server 在这里声明自己支持哪些能力：`tools`（提供工具调用）、`resources`（提供资源读取）、`prompts`（提供提示词模板）、`logging`（日志记录）
+
+### 第三步：Client 发送 notifications/initialized
+
+Client 收到成功响应后，发送一条「已初始化」通知，**正式确认握手结束**：
+
+- 这是一条 JSON-RPC 的 **Notification（通知）**，Server 收到后**不需要也不应该**返回任何响应
+- 此后 Client 才开始发真正的业务请求：`tools/list`（拉取工具列表）、`tools/call`（执行工具）
+
+### 核心机制：严格的能力契约
+
+握手最重要的意义在于**「互相摸底」**，且契约是强制的：
+
+- 如果第二步 Server 返回的 capabilities 里**没有声明 `tools: {}`**，Client 在后续整个会话期间**绝不会**向该 Server 发送任何工具调用请求
+- 反过来，Client 没声明 `sampling`，Server 也不能反向请求大模型
+- 这保证了双方都只使用对方明确声明过的能力，避免无效请求
+
+**面试一句话总结**：MCP 握手是基于 JSON-RPC 2.0 的三步消息交换：**Client 发 `initialize`（报身份、版本、能力）→ Server 回响应（协商版本、声明支持 tools/resources/prompts 中的哪些）→ Client 发 `notifications/initialized` 通知收尾**。握手形成严格的能力契约——没声明的能力双方都不得使用，握手完成后才进入 `tools/list`、`tools/call` 等业务阶段。
+
 ## MCP有哪些模式，有什么区别，如何选择
 
-stdio 模式和SSE模式
+### 核心设计理念：协议层与传输层分离
+
+MCP 的一个核心设计是**协议层与传输层分离**——无论用什么方式传输数据，里面跑的 JSON-RPC 消息内容**一模一样**（握手、`tools/list`、`tools/call` 完全相同），变的只是「消息走哪条路」。官方规范定义了两种传输模式：**stdio** 和 **SSE**。
+
+### 模式一：stdio（标准输入/输出，本地模式）
+
+最基础、最常用的模式（Claude Desktop、Claude Code 默认就是这种模式）。
+
+- **工作原理**：Client（Agent）把 MCP Server 作为**本地子进程**拉起，双方通过操作系统的 `stdin`/`stdout` 直接互发 JSON 数据
+- **生命周期**：完全依附于 Client——Client 启动就拉起 Server，Client 关闭 Server 进程随之销毁
+- **优势**：
+  - **极致安全**：不开放任何网络端口、不走网络协议栈，纯本地进程间通信，极难被外部攻击
+  - **零配置**：不用处理 IP、端口冲突、跨域、鉴权等网络问题
+  - **低延迟**：省去网络封包/解包开销
+- **劣势**：
+  - **仅限单机**：Client 和 Server 必须在同一台机器（或同一容器）内
+  - **难以共享**：每个 Client 各自拉起专属子进程——3 个 Agent 用同一个天气工具，就会各自启动一个天气 Server 进程，**无法共享状态和连接池**
+
+### 模式二：SSE（Server-Sent Events / HTTP，远程模式）
+
+让 MCP 变成标准的远程 Web 服务，专为分布式架构设计。
+
+- **工作原理**：基于标准 HTTP，双向通信走两条通道：
+  - **下行（Server → Client）**：Client 发起 HTTP GET 建立一条 **SSE 长连接**，Server 通过它持续推送结果和通知
+  - **上行（Client → Server）**：Client 调用工具时，用普通 **HTTP POST** 把参数发给 Server 指定端点
+- **生命周期**：独立于 Client——Server 作为后台服务或云端服务**持续运行**，随时等待各 Client 连接
+- **优势**：
+  - **跨机器/分布式**：Agent 跑在本地或手机上，Server 可以部署在公司内网或云端
+  - **一对多共享**：一个 Server（如连接企业核心数据库的 Server）可同时服务成百上千个 Agent，统一管理、资源复用
+- **劣势**：
+  - **运维成本高**：要处理 HTTPS、API Key 鉴权、端口暴露、跨域等 Web 问题
+  - **网络延迟**：比本地管道多一层网络传输开销
+
+### 对比总结表
+
+| 维度 | stdio 模式（本地子进程） | SSE 模式（远程 Web 服务） |
+| --- | --- | --- |
+| **通信通道** | 操作系统的 `stdin`/`stdout` | HTTP POST（上行）+ SSE 长连接（下行） |
+| **部署位置** | 必须与 Agent 在同一台机器 | 任意网络可达的服务器 |
+| **生命周期** | Client 管理：随用随起，用完销毁 | 独立运行，持续监听端口 |
+| **安全性** | 极高（仅限本地进程间通信） | 需自行实现鉴权和网络加密 |
+| **配置复杂度** | 零配置（无端口/跨域/鉴权问题） | 高（HTTPS、API Key、端口、CORS） |
+| **多客户端共享** | 不支持（一对一专属绑定） | 支持（一对多，可做中心化网关） |
+| **典型场景** | 读本地文件、执行本地脚本、个人桌面 AI 助手 | 企业内部数据库、云端 SaaS 接口、多用户云端 AI 产品 |
+
+### 如何选择
+
+- **给自己本地的 AI 助手**（Claude Desktop、Cursor、Claude Code）写工具，读本地文件、查天气 → 毫不犹豫选 **stdio**
+- **开发 SaaS 产品**，或把公司内部知识库/数据库统一包装成 MCP 接口、供全公司不同 AI 应用使用 → 选 **SSE** 模式
+- 一句话判断标准：**能力在本机、个人用 → stdio；能力要共享、在远端 → SSE**
+
+### 补充：规范演进
+
+早期规范叫 **SSE 传输**，**2025-03-26 版规范**已将其演进为 **Streamable HTTP**（单个端点统一处理请求和推送，服务端可选把响应升级为 SSE 流，不再强制拆 GET/POST 两条通道），面试提到时说明这个演进是加分项。
+
+**面试一句话总结**：MCP 协议层与传输层分离，JSON-RPC 消息不变、传输方式可选：**stdio 是本地模式**——Server 是 Client 的子进程、走标准输入输出，安全、零配置、低延迟，但仅限单机、无法共享；**SSE 是远程模式**——Server 独立部署、走 HTTP POST + SSE 长连接，支持跨机器和一对多共享，但要自己解决运维和鉴权。个人本地工具选 stdio，团队共享服务选 SSE。
 
 ## 大模型如何知道有哪些MCP
 
-todo
+### 先纠正一个认知偏差
 
+**大模型本身并不知道「MCP」的存在。** 模型看不到 Server、看不到握手、看不到协议——它唯一能看到的，就是每次 API 请求里 **`tools` 参数中的工具定义清单**。MCP 工具如何进入模型视野，是一条**由 Host 在中间翻译的四步链路**：
 
-MCP Server服务器
+1. **用户配置**：用户在配置文件中声明要接哪些 MCP Server（如 Claude Code 的 `.mcp.json`、Claude Desktop 的配置文件）——这是唯一由人完成的环节，模型全程不参与
+2. **启动时连接与能力发现**：会话启动时，Host 为每个配置的 Server 创建 Client，完成三步握手，然后调用 **`tools/list`** 把每个 Server 的全部工具定义（名称 + 描述 + 参数 JSON Schema）拉回来，聚合进自己的工具目录
+3. **注入模型请求**：**每一轮**调用大模型时，Host 把所有可用工具（内置工具 + 各 MCP Server 的工具）的定义**全量拼进 API 请求的 `tools` 参数**。模型读到的只是工具的「说明书」，**不知道背后是内置代码还是某个 MCP Server**（注入机制详见 3.3 节）
+4. **模型按描述匹配调用**：模型根据每个工具的 **description** 判断该用哪个工具，输出 tool call；Host 拦截后查路由表，发现是 MCP 工具就经对应 Client 转发 `tools/call` 给 Server 执行
 
+### 两个关键认知
+
+- **对模型而言，MCP 工具和内置工具没有任何区别**：都是 tools 参数里名字 + 描述 + Schema 的一行记录，「来自哪个 Server」只有 Host 知道，路由是 Host 的职责
+- **description 是模型感知工具的唯一线索**：工具描述写得清不清晰，直接决定模型能否在正确的时机选中它——这也是写 MCP Server 时 description 质量至关重要的原因
+
+### 补充：工具太多时的优化
+
+接入多个 Server、工具上百个时全量注入太占上下文，Host 会改用 **Tool Search 延迟加载**：系统提示里只放工具名清单，模型要用某个工具时先搜索、再加载它的完整 Schema（详见 3.10 节）。这只改变「注入时机」，不改变「模型通过 tools 参数感知工具」的本质。
+
+**面试一句话总结**：大模型不直接感知 MCP——它只看到每次请求 `tools` 参数里的工具定义。链路是：**用户配置 Server → Host 启动时握手并 `tools/list` 拉取工具定义 → 每轮请求注入 tools 参数 → 模型按 description 匹配并输出 tool call，Host 负责路由回对应 Server**。MCP 工具和内置工具在模型眼里完全同构，「来自哪个 Server」是 Host 层的路由信息。
 
 ## 一个MCP服务 进程必须一直在吗
+
+### 直接回答
+
+**在标准 MCP 协议架构下，进程必须一直在，握手完成后不能停掉。** 握手只是「认识一下」，真正干活还要靠这个进程。如果停掉进程、每次调用时改用 `python weather.py` 这种方式执行，就**偏离了 MCP 的设计初衷，也不再是 MCP 了**。原因有三个核心点：
+
+### 原因一：通信管道随进程一起销毁
+
+stdio 模式下，Agent 和 Server 之间靠 **stdin/stdout 两根「水管」**通信。进程一销毁，水管就断了。Agent 后续想发 `tools/call` 查天气时，会发现**无处可发**——代码层面直接报 `Broken pipe` 或 `EOF` 致命错误。
+
+### 原因二：MCP 工具调用是 JSON-RPC，不是命令行传参
+
+`python weather.py` 用的是**操作系统级的命令行传参**；而 MCP 的 `tools/call` 是往管道里发一段 **JSON 消息**：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "get_weather",
+    "arguments": { "city": "Beijing" }
+  }
+}
+```
+
+Server 进程必须一直在后台**循环监听（Event Loop）自己的 stdin**，才能收到这条指令、执行代码、再把结果包装成 JSON 通过 stdout 返回。进程不在，监听者就不在。
+
+### 原因三：Server 有强制的状态机要求
+
+那「每次调用时临时拉起一个新进程、发完 `tools/call` 再杀掉」行不行？**也不符合规范**：
+
+- MCP 协议规定，任何 Server 启动后**必须先完成三步握手（`initialize`）**，Client 在握手完成前也不得发送业务请求（`ping` 除外）
+- Server 在**未握手的情况下直接收到 `tools/call`，规范约定应拒绝执行**，返回错误 **`-32002: Server not initialized`**
+- 也就是说「免握手直接用」这条路被协议本身堵死了；而每次调用都重新握手，又引入巨大的无谓开销
+
+### 本质：MCP 的价值在于统一的生命周期与接口
+
+如果 Agent 直接调 `python weather.py`，它就退化成了**针对特定操作系统、特定语言的 CLI 调用脚本**——换个 Node.js 写的工具、换个远程服务，调用方式全得重写。而保持进程存活、走标准 `tools/call`，Agent **不需要关心**这个工具是 Python 写的还是 Node.js 写的、是本地进程还是远端服务器——它只需要**无脑往管道里发 JSON**。这正是 MCP 把 M×N 降为 M+N 的根基。
+
+**面试一句话总结**：不能停。握手只完成了「能力交换」，后续调用依赖存活进程上的三件事：**stdio 管道随进程销毁而断裂**、**`tools/call` 是发给运行中进程的 JSON-RPC 消息而非命令行调用**、**协议状态机强制先握手后调用（否则返回 -32002）**。MCP 的价值就是统一生命周期与接口——Agent 只发 JSON，不关心工具用什么语言写、跑在哪里。
+
+## 如何自己创建一个MCP工具，接入Agent使用
+
+### 整体步骤
+
+1. **定义工具**：确定 name、description、参数 Schema 三要素
+2. **选择 SDK 实现 Server**：写代码注册工具 + 实现执行逻辑
+3. **本地调试验证**：用 MCP Inspector 测试
+4. **配置进 Agent（Host）**：声明启动命令
+5. **验证使用**：Agent 自动发现，模型即可调用
+
+### 第一步：定义工具三要素
+
+和创建任何 Tool 一样（见 3.9 节），先想清楚：**name**（唯一标识）、**description**（模型靠它判断何时调用，**质量最关键**）、**参数 Schema**。以「查天气」为例：`get_weather(city: string)`。
+
+### 第二步：实现 MCP Server
+
+官方首批提供了 TypeScript 和 Python SDK（后续已扩展到 Java、C#、Go、Kotlin、Swift 等多语言）。用 Python SDK 中的 **FastMCP** 高层框架，十几行代码搞定：
+
+```python
+# weather_server.py
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("weather")
+
+@mcp.tool()
+def get_weather(city: str) -> str:
+    """查询指定城市的实时天气"""
+    # 这里调用真实的天气 API，示例直接返回
+    return f"{city}：晴，25°C"
+
+if __name__ == "__main__":
+    mcp.run()  # 默认使用 stdio 传输
+```
+
+框架帮你处理了所有协议细节：三步握手、`tools/list` 返回工具定义（自动从函数签名和 docstring 生成 Schema 和 description）、循环监听 stdin 响应 `tools/call`。**你只需关心工具的业务逻辑**。（想看底层写法——手动注册 `tools/list`/`tools/call` 处理器——见 3.9 节的 JS 示例。）
+
+### 第三步：用 MCP Inspector 调试
+
+不接入 Agent，先单独测试 Server 是否符合协议：
+
+```bash
+npx @modelcontextprotocol/inspector python weather_server.py
+```
+
+它会打开一个网页界面，可以手动触发握手、查看 `tools/list` 返回的工具定义、试调用 `tools/call`——**确认 Server 本身没问题再接 Agent**，排查效率最高。
+
+### 第四步：配置进 Agent
+
+以 Claude Code 为例，两种方式任选：
+
+```bash
+# 命令行方式
+claude mcp add weather -- python /绝对路径/weather_server.py
+```
+
+```json
+// 或直接编辑 .mcp.json
+{
+  "mcpServers": {
+    "weather": {
+      "command": "python",
+      "args": ["/绝对路径/weather_server.py"]
+    }
+  }
+}
+```
+
+注意 stdio 模式下这里配的是**启动命令**——Host 会负责拉起和管理这个子进程。
+
+### 第五步：验证使用
+
+配置后**不需要改 Agent 任何代码**，链路自动生效（就是前面「MCP工作流程」讲的流程）：
+
+1. Host 启动时拉起 Server 子进程 → 握手 → `tools/list` 拿到 `get_weather` 的定义
+2. 工具定义注入模型请求的 tools 参数
+3. 对 Agent 说「查一下北京天气」→ 模型输出 tool call → Host 转发 `tools/call` → Server 执行 → 结果回传 → 模型回复「北京：晴，25°C」
+
+### 实践注意事项
+
+- **description 写清楚**：「查询指定城市的实时天气」比「天气工具」好得多——模型选工具的唯一依据就是它
+- **传输模式选择**：本地个人工具用 stdio（本例）；要给团队共享再改成 HTTP 模式部署成服务
+- **错误处理要做好**：工具执行失败的报错信息会原样回传给模型，清晰的错误描述能帮模型自我纠正
+
+**面试一句话总结**：自建 MCP 工具五步：**定义工具三要素 → 用官方 SDK（如 Python FastMCP）实现 Server 和工具逻辑 → 用 MCP Inspector 单独调试 → 在 Host 配置文件中声明启动命令 → Agent 自动完成握手、拉取工具定义，模型即可调用**。SDK 屏蔽了握手和 JSON-RPC 细节，开发者只需写业务逻辑；Agent 侧零代码改动，这就是协议标准化的价值。
+
+## FastMCP 高层框架做了什么
+
+### 一句话定位
+
+FastMCP 把 MCP 协议里**所有「与业务无关的样板工作」全部封装**，开发者只写业务函数和 docstring，剩下的协议层、传输层、序列化工作框架全包。对照前面的协议细节，它具体做了五件事：
+
+### 1. 传输层监听循环
+
+- 启动一个 **Event Loop**，持续监听 `stdin`（stdio 模式），读到 JSON 数据就处理、把结果写回 `stdout`
+- 想切换成 HTTP/SSE 远程模式，改一个参数即可，业务代码不动
+- **没有框架时**：要自己写进程通信、监听循环、管道读写
+
+### 2. 协议握手与状态机
+
+- 自动响应 `initialize` 请求：完成版本协商、能力（capabilities）声明
+- 自动处理 `notifications/initialized`
+- 内置**状态机校验**：未握手就收到 `tools/call`，按规范拒绝并返回 `-32002: Server not initialized`
+- **没有框架时**：要自己实现三步握手的消息处理和状态管理
+
+### 3. JSON-RPC 消息解析与封装
+
+- 解析每条请求的 `id`、`method`、`params`，路由到对应处理器
+- 把返回值按 JSON-RPC 2.0 规范包装成成功响应；把异常包装成标准错误响应
+- **没有框架时**：要自己拼/拆每一条 JSON-RPC 消息
+
+### 4. 工具注册与 Schema 自动生成（最省心的一点）
+
+- `@mcp.tool()` 装饰器把函数登记进内部**工具注册表**
+- 收到 `tools/list` 时，**自动从函数签名生成工具定义**：函数名 → `name`，docstring → `description`，参数类型注解 → `inputSchema`（如 `city: str` → `{"type": "string"}`）
+- **没有框架时**：要手写每个工具的 JSON Schema，函数签名改了还要同步改 Schema（3.9 节 JS 示例就是手写 Schema 的）
+
+### 5. 调用分发与结果回传
+
+- 收到 `tools/call` 时，按 `name` 从注册表找到对应函数，**校验并转换参数**后调用
+- 把函数返回值包装成协议规定的 `content` 格式，经 stdout 回传
+
+### 对比感受
+
+| 维度 | 手写底层 SDK（3.9 节 JS 示例） | FastMCP |
+| --- | --- | --- |
+| 工具定义 | 手写 JSON Schema | 从函数签名自动生成 |
+| 握手/状态机 | 框架核心处理，但流程需理解 | 完全无感 |
+| 业务代码占比 | 一半协议样板 + 一半业务 | **几乎全是业务** |
+| 代码量 | 几十行起一个工具 | 几行起一个工具 |
+
+**面试一句话总结**：FastMCP 封装了 MCP 协议的全部样板工作：**stdin 监听循环、三步握手与状态机、JSON-RPC 解析封装、`tools/list` 的 Schema 自动生成、`tools/call` 的参数校验与分发执行**。开发者只需用装饰器注册业务函数，协议层完全无感——让写 MCP 工具的成本低到和写普通函数一样。
 
 ## **为什么MCP不能延迟加载？底层原因是什么，为什么Skill可以？**
 
@@ -1407,7 +1781,7 @@ MCP Server服务器
 - **指令遵循是"读取时的软约束"**：文本什么时候进上下文都行，读到即生效
 - 生活化类比：**MCP 工具像遥控器上的按键**，按键必须物理存在才按得下去；**Skill 像菜谱**，只需知道书名和一句话简介，要做哪道菜抽出来翻开读就行
 
-## 延伸：MCP 后来怎么补上渐进加载的
+## MCP 后来怎么补上渐进加载的
 
 "不能"是默认架构下的结论，引入**间接层**就能做到：
 
