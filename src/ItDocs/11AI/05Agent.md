@@ -1994,6 +1994,121 @@ MCP Server 不止能提供工具，协议一共定义了三种能力：
 
 **面试一句话总结**：MCP 包含**三个角色**——运行模型的 Host、与 Server 一一对应的 Client、暴露能力的轻量 Server；Server 能提供**三类原语**——可执行的 Tools、可读取的 Resources、可复用的 Prompts 模板；通信基于 **JSON-RPC 2.0**，传输支持本地 stdio 和远程 HTTP 两种方式。
 
+---
+
+### 深入理解 MCP 三大原语
+
+MCP 协议定义了三种核心能力原语（Primitives），它们各自有不同的定位和用途：
+
+#### 1. Tools（工具）——让 LLM "做动作"
+
+| 维度 | 说明 |
+| --- | --- |
+| **本质类比** | 系统的 **API / 可执行函数** |
+| **主要作用** | 让 LLM **执行操作**并产生影响 |
+| **是否有副作用** | **有**（如修改数据库、发邮件、创建文件） |
+| **触发主体** | 通常由 **大模型自行推理后触发**（Function Calling） |
+| **核心标识** | `name`（工具名） |
+| **数据格式** | name + description + inputSchema（JSON Schema） |
+
+Tools 是 MCP 中最常用的原语，也是大多数开发者的第一接触点。每个 Tool 定义包含名称、描述和参数 Schema，模型通过 Function Calling 机制决定何时调用。
+
+#### 2. Resources（资源）——给 LLM "读数据"
+
+**Resources 是 MCP Server 向大模型暴露的"只读数据源"。** 它的定位类似于 Web 中的 **GET 请求** 或操作系统中的 **只读文件**。
+
+**工作机制与特点：**
+
+- **唯一标识（URI）**：每一个资源都由一个独特的 URI 来定义，例如：
+  - `file:///logs/app.log`（本地日志文件）
+  - `postgres://database/schema`（数据库结构）
+  - `github://owner/repo/pull/123`（某个 PR 的详细信息）
+
+- **只读且无副作用**：读取 Resource 不会更改任何系统状态，仅仅是把数据抓取过来注入到大模型的上下文中
+
+- **支持主动订阅与通知**：如果某个资源（如日志文件）发生了变化，MCP Server 可以向客户端发送 `notifications/resources/updated` 通知，提示客户端更新上下文
+
+**数据包格式：**
+
+MCP Server 握手时会声明 `resources` 能力。当客户端询问有哪些资源时，服务端返回如下结构：
+
+```json
+{
+  "resources": [
+    {
+      "uri": "file:///path/to/server.log",
+      "name": "System Log",
+      "description": "服务器实时运行日志",
+      "mimeType": "text/plain"
+    },
+    {
+      "uri": "postgres://db/users/schema",
+      "name": "User Table Schema",
+      "description": "用户表的完整字段定义",
+      "mimeType": "application/json"
+    }
+  ]
+}
+```
+
+当客户端（或大模型）需要看数据时，会发送 `resources/read` 请求，带上对应 `uri` 即可拿到具体内容。
+
+#### 3. Prompts（提示词模板）——给用户"快捷指令"
+
+**Prompts 是 MCP Server 开发者封装好的"高级工作流模板"。** 它就像客户端 UI 界面里的**快捷按钮**或**斜杠命令（Slash Commands）**。
+
+**工作机制与特点：**
+
+- **带参数的模板**：Prompt 不只是一句固定的提示词，它可以接收参数（Arguments）
+- **由 Server 开发者精心设计**：Server 的开发者最清楚如何让大模型更好地配合自家的工具或资源，因此直接在 Server 端写好最佳 Prompt，供用户一键调用
+- **返回消息数组**：调用 Prompt 后，Server 会返回预先组装好的 `messages` 数组（可以包含系统提示词、用户提示词，甚至是内嵌的资源引用）
+
+**典型使用场景：**
+
+假设你配置了一个 Git MCP Server，这个 Server 里面可能会内置几个 `prompts`：
+
+1. **`git-commit`**（参数：`diff`）：自动分析当前文件的变更，并写出符合规范的 Commit Message
+2. **`code-review`**（参数：`branch`）：拉取该分支的所有修改，按团队规范审查代码
+
+在 Claude Desktop 或 Cursor 等客户端中，用户可以在输入框直接输入 `/git-commit` 快速触发这个模板，而不需要自己手动敲一长串长 Prompt。
+
+**数据包格式：**
+
+客户端通过 `prompts/list` 获取列表：
+
+```json
+{
+  "prompts": [
+    {
+      "name": "explain-code",
+      "description": "让大模型解释一段代码逻辑并标注潜在漏洞",
+      "arguments": [
+        {
+          "name": "code_snippet",
+          "description": "需要解释的代码片段",
+          "required": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+调用时通过 `prompts/get` 传入参数，Server 返回组装好的消息数组。
+
+#### 三大原语总结对比
+
+| 维度 | Tools（工具） | Resources（资源） | Prompts（提示词模板） |
+| --- | --- | --- | --- |
+| **本质类比** | 系统的 **API / 可执行函数** | 系统的 **文件 / 只读数据** | 客户端的 **快捷指令 / 斜杠命令** |
+| **主要作用** | 让 LLM **执行操作** 并产生影响 | 给 LLM **提供被动上下文背景** | 给用户 **提供标准化的任务入口** |
+| **是否有副作用** | **有**（如修改数据库、发邮件） | **无**（纯只读，不影响物理系统） | **无**（仅生成引导大模型的对话消息） |
+| **触发主体** | 通常由 **大模型自行推理后触发** | 由 **客户端注入** 或 **LLM 申请读取** | 通常由 **人类用户主动点击/输入** |
+| **核心标识** | `name`（工具名） | `uri`（统一资源定位符） | `name`（模板命令名） |
+| **API 端点** | `tools/list` → `tools/call` | `resources/list` → `resources/read` | `prompts/list` → `prompts/get` |
+
+**三者共同构成了完整的 MCP 生态**：`prompts` 负责引导交互，`resources` 负责提供背景知识，`tools` 负责真正落地执行动作。
+
 ## MCP工作流程
 
 整个流程可分为**五个阶段**，以「Cline（Host）接入一个天气 MCP Server，用户问纽约天气」为例：
