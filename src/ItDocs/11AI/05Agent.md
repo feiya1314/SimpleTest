@@ -1264,33 +1264,586 @@ Claude Code 采用的是方式一的变体——即 Deferred Tools（延迟加�
 
 Tool 是大模型连接外部世界的接口，通过 Function Calling 机制——模型根据工具描述输出结构化调用指令，Agent 框架拦截执行并将结果喂回模型完成循环——让大模型从"只能说话"变成"能做事"。
 
-# 4. skill介绍和使用
+# 4. Skill 介绍
 
-## Skill是什么？
+## 4.1 Skill 是什么？
 
-Skill 的核心设计：渐进式加载信息公开
+**Skill（技能）** 是给大模型（Claude）看的一份"说明文档"——一个 `SKILL.md` 文件，包含 YAML frontmatter + Markdown 指令，告诉模型如何完成特定任务。
 
-Skill 怎么触发？
+用最通俗的话讲，Skill 就是一个大模型可以**随时翻阅的说明书**：
 
-Skill 放在哪里？
+- **会议总结 Skill**：规定总结必须包含"参会人员、议题、决定"三个部分，模型按这个格式输出
+- **代码审查 Skill**：规定审查必须关注安全性、性能、可维护性等方面
+- **智能客服 Skill**：规定遇到投诉要先安抚用户情绪，不得随意承诺
 
-如何构建自己的skill
+**本质定位**：Skill 不是代码，不是工具，而是**一段预定义的指令/提示词模板**，改变模型在处理特定任务时的行为方式。
 
-构建一个优秀的skill 注意事项，
+## 4.2 为什么需要 Skill？
 
-一个skill执行完后，skill详细内容还会在上下文中吗，会剔出吗
+| 痛点 | Skill 怎么解决 |
+| --- | --- |
+| **每次手动重复指令** | 一次写好，永久复用，不用每次手动粘贴一长串要求 |
+| **工作流不统一** | 团队共享标准化的 Skill，所有人用同一套流程 |
+| **上下文浪费** | 指令按需加载，不用时只占一行描述（详见 4.3 节） |
+| **跨平台不兼容** | 遵循 [Agent Skills](https://agentskills.io) 开放标准，Claude Code、VS Code、Cursor 等工具通用 |
 
-skill 和提示词有什么区别？
+一句话：**Skill 把重复的指令工作从"每次手写"变成了"一次写好、按需加载"**。
 
-skill 的内容确实就是提示词，这个没错。但区别不在内容，在加载方式。提示词是一股脑全塞进上下文的，skill 走的是渐进式披露，分层按需加载。平时上下文里只常驻一行描述，模型自己判断这活用得上了，正文才会被注入进来，更细的参考文档还能再懒一层，真用到才去读。所以我的理解是，提示词是知识本身，skill 是知识的加载策略。
+---
 
+## 4.3 核心设计：渐进式披露机制（Progressive Disclosure）
 
-<span style="white-space: pre;" class="text-only">skill的meta信息，也是放到tool参数中的吗</span>
+**这是 Skill 最重要、最核心的设计理念。** 它把 Skill 的信息分成三层，每层加载时机不同：
 
+```
+Skill 信息结构（三层渐进披露）
+├── 第一层：元数据层（Metadata）
+│   ├── 内容：name + description
+│   ├── 加载时机：始终加载（每次请求都带）
+│   └── 上下文成本：极低，只有一行描述
+│
+├── 第二层：指令层（Instruction）
+│   ├── 内容：SKILL.md 正文（除 metadata 外的部分）
+│   ├── 加载时机：按需加载（模型匹配后才加载）
+│   └── 上下文成本：中等，只有匹配的 skill 才加载
+│
+└── 第三层：资源层（Resource）
+    ├── Reference（参考文件）：条件触发，用到才加载
+    ├── Script（可执行脚本）：只执行，不读入上下文
+    └── Asset（资源文件）：类似 Reference
+```
 
-<span style="white-space: pre;" class="text-only">为什么 Skill 不直接用 tool 的机制？</span>
+### 第一层：元数据层（Metadata）
 
+- 所有 Skill 的 `name` 和 `description` **始终对模型可见**
+- 相当于一个**轻量级目录**，模型每次回答前都会看到
+- 哪怕装了十几个 Skill，模型看到的也只是一份轻量级的名称+描述清单
 
+### 第二层：指令层（Instruction）
+
+- 即 SKILL.md 中除 metadata 外的正文
+- 只有当模型发现用户请求与某个 Skill 匹配时，才会加载这一层
+- 这就是**按需加载**——不匹配的 Skill 正文永远不会进入上下文
+
+### 第三层：资源层（Resource）
+
+- **Reference**：条件触发加载（如"只有提到钱时才加载财务手册"）
+- **Script**：只执行，不读入上下文（如运行 Python 脚本上传文件，代码本身不消耗 token）
+- 这是在指令层基础上的**第二次按需加载**——按需中的按需
+
+---
+
+## 4.4 Skill 的完整工作流程
+
+以"会议总结助手" Skill 为例，整个流程分 6 步：
+
+```
+用户输入请求："总结以下会议内容..."
+    │
+    ├── Step 1: Claude Code 把用户请求 + 所有 Skill 的元数据（name + description）发给模型
+    │           （元数据在系统提示的 Skills 段中，不是 tools 参数）
+    │
+    ├── Step 2: 模型匹配到"会议总结助手"的 description 与请求相关
+    │           → 输出 Skill Tool 调用（Function Calling），参数为 Skill 名称
+    │           （此时模型只看了 Skill 的名称和描述，没看正文）
+    │
+    ├── Step 3: Claude Code 拦截到 Skill Tool 调用 → 向用户请求确认是否允许使用该 Skill
+    │           （用户同意）
+    │
+    ├── Step 4: Claude Code 从磁盘读取"会议总结助手"目录下的完整 SKILL.md
+    │           然后把用户请求 + 完整的 SKILL.md 正文发给模型
+    │
+    ├── Step 5: 模型按 SKILL.md 中的指令生成响应
+    │           （包含参会人员、议题、决定等）
+    │
+    └── Step 6: Claude Code 将结果返回给用户
+```
+
+**关键认知**：Step 1 只传元数据（名称+描述），Step 4 才传完整正文——这就是"按需加载"的具体实现。
+
+### 核心机制：Skill Tool 调用
+
+模型**不是**在文本回复中"说"它想用哪个 Skill，而是通过 **Function Calling 机制**调用一个名为 `Skill` 的内置 Tool。这个 Tool 的定义大致如下：
+
+```json
+{
+  "name": "Skill",
+  "description": "执行一个 Skill 技能。当用户请求与某个 Skill 的描述匹配时调用。",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string", "description": "Skill 名称，对应目录名" }
+    },
+    "required": ["name"]
+  }
+}
+```
+
+Claude Code 在 `tools` 参数中提供了这个 `Skill` 工具给模型（与 `Read`、`Edit`、`Bash` 等内置工具并列）。当模型决定使用某个 Skill 时，它输出的 tool call 大致是：
+
+```json
+{
+  "type": "tool_use",
+  "name": "Skill",
+  "input": { "name": "meeting-summary" }
+}
+```
+
+Claude Code 拦截到这个 tool call 后，**并没有"执行"这个 Skill（因为没有 SKILL.md 正文可执行）**，而是做了三件事：
+
+1. **询问用户**是否允许使用该 Skill（除非 `invoke: optional`）
+2. **从磁盘读取**对应的 SKILL.md 文件
+3. 发起**新一轮模型请求**，把 SKILL.md 正文注入上下文
+
+这就是为什么 Step 3 和 Step 4 之间需要用户确认——Claude Code 在拦截 tool call 后暂停了正常流程，等用户批准后才继续加载。**没有用户批准，模型永远不会看到 SKILL.md 的正文。**
+
+### 与普通 Tool 调用的区别
+
+| 对比 | 普通 Tool（如 Read、Bash） | Skill Tool |
+| --- | --- | --- |
+| **模型输出 tool call 后** | 框架执行该 tool，返回结果 | 框架暂停，询问用户，加载 SKILL.md 后发起新请求 |
+| **执行结果** | 返回给模型继续推理 | SKILL.md 正文注入上下文，模型重新推理 |
+| **用户交互** | 可能不需要用户确认 | 默认需要用户确认 |
+| **"执行"的含义** | 调用真实 API/函数 | 读取文件 + 重新发起模型请求 |
+
+---
+
+## 4.5 Skill 怎么触发？
+
+有两种触发方式：
+
+### 方式一：用户手动触发
+
+用户直接输入 `/技能名` 调用：
+
+```
+/deploy              # 执行部署 Skill
+/code-review         # 执行代码审查 Skill
+/summarize-changes   # 执行变更总结 Skill
+```
+
+### 方式二：Claude 自动匹配触发
+
+当 Claude 发现用户请求与某个 Skill 的 `description` 字段匹配时，会自动询问用户是否使用该 Skill。触发条件由 frontmatter 控制：
+
+```yaml
+---
+description: 当用户需要总结会议内容时使用
+invoke: manual          # manual = 仅手动触发（默认）
+                        # optional = 允许自动匹配触发
+---
+```
+
+- 如果设为 `invoke: manual`（默认），Claude 在自动匹配到后需要用户确认才能使用
+- 如果设为 `invoke: optional`，Claude 可以在匹配到后直接使用（不需要用户确认）
+
+---
+
+## 4.6 大模型如何知道有哪些 Skill？
+
+模型通过**元数据注入**知道 Skill 的存在，具体分两步：
+
+**Step 1：启动时扫描目录**
+
+Claude Code 启动时会扫描所有 Skill 目录（`~/.claude/skills/`、`.claude/skills/` 等），读取每个 Skill 的 `name` 和 `description`。
+
+**Step 2：每轮请求注入系统提示**
+
+**Skill 的元数据不是放在 API 的 `tools` 参数中**，而是放在**系统提示（System Prompt）** 的 Skills 段落中。模型在每轮请求中都能看到所有 Skill 的名称和描述清单，但看不到 Skill 的完整正文。
+
+**这和 Tool 有本质区别**：
+
+| 对比 | 普通 Tool（Read/Bash 等） | Skill |
+| --- | --- | --- |
+| **元数据注入位置** | API 的 `tools` 参数 | **系统提示（System Prompt）**——name + description 在 Skills 段落 |
+| **触发 Tool 定义** | 每个 Tool 各自在 `tools` 参数中有独立定义 | 只有一个 `Skill` Tool 在 `tools` 参数中，接收 Skill 名称 |
+| **完整内容** | name + description + 参数 Schema 全量注入 | 只有 name + description 注入，正文按需加载 |
+| **调用方式** | Function Calling（结构化 tool call） | **Function Calling**——模型调用 `Skill` Tool，框架拦截后加载文件 |
+| **模型感知** | 看到完整的工具定义 | 看到所有 Skill 的名称+描述（系统提示）+ 一个 `Skill` Tool（tools 参数） |
+
+---
+
+## 4.7 为什么 Skill 不直接用 Tool 的机制？
+
+主要有三个原因：
+
+### 原因一：设计目标不同
+
+- **Tool 是给模型"做事"的能力**——读文件、写文件、执行命令，需要结构化参数和返回值
+- **Skill 是给模型"看"的说明书**——告诉模型该怎么做事，不需要结构化参数，只需要自然语言指令
+
+### 原因二：参数传递方式不同
+
+Tool 需要严格的 JSON Schema 定义参数，Skill 用自然语言传参。如果用 Tool 机制实现 Skill：
+
+```json
+{
+  "name": "meeting_summary",
+  "description": "总结会议内容",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "content": { "type": "string" }
+    }
+  }
+}
+```
+
+但这只能传"内容"参数，无法表达"总结格式必须是参会人员、议题、决定"这种复杂的指令。**Tool 的参数 Schema 适合传数据，不适合传指令。**
+
+### 原因三：加载策略不同
+
+- Tool 每次请求全量注入 tools 参数，不能按需加载
+- Skill 走渐进式披露，元数据常驻，正文按需加载
+- 如果把 Skill 当成 Tool，那所有 Skill 的完整正文每次都要注入——**完全违背了 Skill 节省上下文的初衷**
+
+**总结**：不是不能，而是不适合。Tool 是做事的工具，Skill 是看说明书的文档，两者的本质差异决定了不能互换。
+
+---
+
+## 4.8 Skill 放哪里？
+
+Skill 可以放在多个位置，按优先级从高到低：
+
+| 位置 | 路径 | 适用范围 |
+| --- | --- | --- |
+| **组织级** | Managed Settings | 整个组织 |
+| **用户级** | `~/.claude/skills/<name>/SKILL.md` | 所有项目 |
+| **项目级** | `.claude/skills/<name>/SKILL.md` | 当前项目 |
+| **插件级** | `<plugin>/skills/<name>/SKILL.md` | 启用插件的场景 |
+| **嵌套（monorepo）** | `<pkg>/.claude/skills/<name>/SKILL.md` | 子目录 |
+
+多个同名 Skill 存在时，**项目级覆盖用户级**，更具体的路径优先。
+
+---
+
+## 4.9 Skill 的高级功能
+
+### 4.9.1 Reference（参考文件）
+
+**Reference 是条件触发的资源文件**，只有当特定条件满足时才加载到上下文。
+
+**工作原理**：
+
+1. 在 SKILL.md 中定义触发条件（如"只有提到钱时"）
+2. 模型根据指令判断是否需要读取 Reference 文件
+3. 需要时才读取文件内容到上下文
+4. 不需要时文件仅存在于硬盘，不占用任何 token
+
+**示例**：会议总结 Skill 的财务手册
+
+```
+会议总结助手/
+├── SKILL.md                    # 主指令
+└── 集团财务手册.md              # Reference 文件（条件触发）
+```
+
+SKILL.md 中写明："仅当会议提到钱、预算、采购、费用时，读取集团财务手册.md，指出金额是否超标并明确审批人。"
+
+用户请求一个关于预算的会议总结时，模型会：
+1. 加载 SKILL.md 发现涉及钱
+2. 请求读取集团财务手册.md
+3. 结合财务规则生成带合规提醒的总结
+
+**关键**：如果用户请求的是技术复盘会（不涉及钱），集团财务手册.md 全程不会加载，零上下文成本。
+
+### 4.9.2 Script（可执行脚本）
+
+**Script 是 Skill 目录下的可执行代码文件**，模型只执行脚本，不读取脚本内容。
+
+**与 Reference 的本质区别**：
+
+| 对比 | Reference | Script |
+| --- | --- | --- |
+| **操作方式** | 读取（Read） | 执行（Run） |
+| **上下文影响** | 内容加载到上下文，消耗 token | 只执行，代码不进入上下文 |
+| **典型用途** | 查询规则、查阅手册 | 运行脚本、上传文件、数据处理 |
+
+**示例**：会议总结 Skill 的上传脚本
+
+```
+会议总结助手/
+├── SKILL.md
+├── 集团财务手册.md              # Reference
+└── upload.py                    # Script（可执行）
+```
+
+SKILL.md 中写明："如果用户提到上传、同步或发送到服务器，运行 upload.py 脚本将总结内容上传。"
+
+用户请求"总结并上传"时，模型：
+1. 加载 SKILL.md
+2. 生成总结
+3. 执行 upload.py（不读取代码内容）
+4. 返回执行结果
+
+**注意**：Script 的代码本身不进入模型上下文，但执行结果会返回给模型。如果一个脚本有上万行业务逻辑，它消耗的模型上下文几乎是零——模型只关心怎么运行它和运行结果。
+
+---
+
+## 4.10 Skill 执行后的上下文清理
+
+**Skill 的完整内容不会永久留在上下文中。**
+
+具体机制：
+- Skill 被触发后，其 SKILL.md 正文加载到当前请求的上下文中
+- 在当前请求完成后，如果后续请求不再涉及该 Skill，它的正文不会保留
+- 下一次请求时，模型看到的是**所有 Skill 的元数据清单**（name + description）
+- 如果下一个请求再次匹配该 Skill，会重新加载
+
+**类比理解**：Skill 就像一本参考书，模型每次需要用时去书架上取下来读，用完放回去。下次再用再去取。书架上的书名（元数据）一直能看到，但书的内容只在需要时打开。
+
+---
+
+## 4.11 Skill vs 提示词的区别
+
+**Skill 的内容本质上就是提示词，这个没错。但区别不在内容，在加载方式。**
+
+| 对比维度 | 普通提示词（Prompt） | Skill |
+| --- | --- | --- |
+| **加载方式** | 每次手动粘贴或全量注入 | 渐进式披露，分层按需加载 |
+| **上下文占用** | 始终占用上下文 | 元数据常驻（极低），正文按需加载 |
+| **可复用性** | 复制粘贴，无法统一管理 | 标准化文件，可共享可版本管理 |
+| **触发方式** | 用户手动输入 | 手动 `/技能名` 或自动匹配 |
+| **开放标准** | 不跨平台 | 遵循 Agent Skills 开放标准 |
+
+**一句话**：提示词是知识本身，Skill 是知识的加载策略。
+
+---
+
+## 4.12 Skill vs MCP
+
+### 核心区别
+
+**Anthropic 官方一句话总结**：
+
+> MCP connects Claude to data. Skills teach Claude what to do with that data.
+
+- **MCP**：给大模型提供数据（查数据库、读 API、获取文件）
+- **Skill**：教大模型如何处理这些数据（格式要求、流程步骤、行为规范）
+
+### 详细对比
+
+| 对比维度 | Skill | MCP |
+| --- | --- | --- |
+| **本质** | Prompt 剧本（指令集） | 外部工具注册协议 |
+| **核心作用** | 告诉模型"怎么做"（流程/规范） | 给模型"新能力"（新工具/数据源） |
+| **数据结构** | 自然语言指令 | 工具 Schema（name + description + parameters） |
+| **触发方式** | 手动 `/` 或自动匹配 | 模型在推理时自主调用（Function Calling） |
+| **运行时** | 加载到模型上下文 | 外部进程执行 |
+| **安全性和稳定性** | 较低（纯指令） | 较高（独立进程隔离） |
+| **适合场景** | 标准化工作流、格式规范 | 连接外部服务、执行真实操作 |
+
+### 能否互相替代？
+
+**不能。** 虽然 Skill 也能通过 Script 执行代码（上传文件、调用 API），但：
+
+- Skill 适合**轻量脚本、简单逻辑**
+- MCP 适合**重型操作、高安全要求**
+- 更好的做法是**结合使用**：MCP 提供数据 + Skill 定义如何处理这些数据
+
+---
+
+## 4.13 Skill 的优缺点
+
+### 优点
+
+| 优点 | 说明 |
+| --- | --- |
+| **节省 Token** | 渐进式披露，正文只在匹配时加载，资源层可再按需加载 |
+| **可复用可分享** | 一次写好，到处使用，团队共享 |
+| **标准化工作流** | 团队所有成员用同一套流程，结果一致 |
+| **跨平台兼容** | 遵循开放标准，Claude Code、Cursor、VS Code 都支持 |
+| **零代码门槛** | 纯 Markdown 编写，不需要编程 |
+| **自动匹配** | Claude 能根据 description 自动发现并建议使用 |
+
+### 缺点
+
+| 缺点 | 说明 |
+| --- | --- |
+| **非确定性执行** | Claude 决定是否遵循 Skill，不是强制执行的 |
+| **安全性和稳定性不如 MCP** | Skill 的 Script 直接跑在本地，没有进程隔离 |
+| **大量 Reference 仍耗上下文** | Reference 文件的内容会加载到上下文，大文件仍需注意 |
+| **不适合重型逻辑** | 复杂的业务逻辑应该用 MCP 而非 Skill 的 Script |
+
+---
+
+## 4.14 Skill 的成本分析
+
+### Token 消耗分解
+
+以"会议总结助手" Skill 为例：
+
+| 加载层级 | 消耗的 Token | 触发条件 |
+| --- | --- | --- |
+| **元数据层** | ~20-50 tokens（name + description） | 每轮请求（始终消耗） |
+| **指令层** | ~200-500 tokens（SKILL.md 正文） | 匹配到该 Skill 时 |
+| **Reference** | ~200-2000+ tokens（参考文件） | 条件触发时 |
+| **Script** | ~0 tokens（代码不进入上下文） | 需要执行时 |
+
+### 关键结论
+
+- **不匹配时**：每个 Skill 只消耗 ~20-50 tokens（元数据），装 10 个 Skill 也只占 ~200-500 tokens
+- **匹配时**：只加载匹配的那个 Skill 的正文（~200-500 tokens），其他 Skill 仍只占元数据
+- **使用 Reference 时**：只有条件满足时才加载 Reference 内容
+- **使用 Script 时**：代码本身零上下文成本，只占执行结果
+
+**对比**：如果把这些指令每次都手动粘贴到提示词中，每次要消耗完整指令的 token，且所有指令始终占用上下文。Skill 的渐进式披露机制可以节省 80-90% 的上下文开销。
+
+---
+
+## 4.15 使用 Skill 的注意事项
+
+### 1. Description 质量决定匹配率
+
+description 是模型判断是否使用这个 Skill 的唯一线索。写得越清晰准确，模型越能在正确时机匹配它。
+
+- **好**：`当用户需要总结会议录音内容时使用，总结格式包括参会人员、议题、决定`
+- **差**：`会议相关`
+
+### 2. 指令要清晰具体
+
+SKILL.md 的正文要详细、无歧义，最好包含示例。模型不是人，不能"猜"你的意图。
+
+- 明确输入是什么、输出是什么
+- 说明步骤顺序
+- 举一个输入-输出示例
+
+### 3. 大文件用 Reference，别塞进 SKILL.md
+
+如果 Skill 需要参考大量背景知识（财务规定、法律条文），用 Reference 文件，不要在 SKILL.md 中写几千字。这样只有条件满足时才加载。
+
+### 4. Script 要写清执行方法
+
+在 SKILL.md 中明确说明：
+- 什么时候运行脚本
+- 传什么参数
+- 期望什么结果
+- 否则模型可能会去读脚本代码（消耗上下文）
+
+### 5. 避免同名冲突
+
+多个位置的同名 Skill 会覆盖，项目级 > 用户级。团队项目中要统一命名规范。
+
+### 6. 不是所有事都适合 Skill
+
+- 需要**确定性执行**的（如"每次写 Python 文件后自动格式化"）→ 用 **Hook**
+- 需要**连接外部服务**的（如查数据库、调 API）→ 用 **MCP**
+- 需要**标准化流程**的（如代码审查、部署步骤）→ 用 **Skill**
+
+---
+
+## 4.16 如何实现自己的 Skill
+
+### 第一步：创建目录
+
+在 `.claude/skills/` 目录下创建以 Skill 名称命名的文件夹：
+
+```bash
+mkdir -p ~/.claude/skills/meeting-summary/
+# 或项目级
+mkdir -p .claude/skills/meeting-summary/
+```
+
+文件夹名称就是 Skill 的名称，必须与 SKILL.md 中 frontmatter 的 name 一致。
+
+### 第二步：创建 SKILL.md
+
+在文件夹中创建 `SKILL.md` 文件：
+
+```markdown
+---
+name: meeting-summary
+description: 当用户需要总结会议录音内容时使用，总结格式包括参会人员、议题、决定
+invoke: manual
+---
+
+# 会议总结助手
+
+## 任务
+总结会议录音内容，输出结构化摘要。
+
+## 输出格式
+必须包含以下三个部分：
+
+### 参会人员
+列出所有参会人员姓名和角色
+
+### 议题
+列出会议讨论的每个议题及其要点
+
+### 决定
+列出会议达成的所有决定，包括：
+- 责任人
+- 截止时间
+- 预算（如有）
+
+## 示例
+
+输入：
+"今天开会的有张三、李四、王五，讨论了新项目的技术选型..."
+
+输出：
+### 参会人员
+- 张三（项目经理）
+- 李四（后端开发）
+- 王五（前端开发）
+
+### 议题
+1. 新项目技术选型讨论
+
+### 决定
+1. 使用 React + Spring Boot 架构
+   - 责任人：李四
+   - 截止时间：下周五
+```
+
+### 第三步：添加 Reference（可选）
+
+在 Skill 目录下添加参考文件：
+
+```bash
+touch ~/.claude/skills/meeting-summary/集团财务手册.md
+```
+
+在 SKILL.md 中引用：
+
+```markdown
+## 财务提醒规则
+
+仅当会议中提到钱、预算、采购、费用时触发：
+1. 读取集团财务手册.md
+2. 指出会议决定中的金额是否超标
+3. 明确审批人
+```
+
+### 第四步：添加 Script（可选）
+
+在 Skill 目录下添加可执行脚本：
+
+```bash
+touch ~/.claude/skills/meeting-summary/upload.py
+```
+
+在 SKILL.md 中说明：
+
+```markdown
+## 上传规则
+
+如果用户提到上传、同步或发送到服务器：
+1. 运行 upload.py 脚本
+2. 参数：总结文件路径
+3. 脚本执行完成后返回上传结果
+```
+
+### 第五步：验证
+
+启动 Claude Code，输入以下命令查看 Skill 是否被识别：
+
+```
+你有哪些 Skill？
+```
+
+如果显示了你创建的 Skill，说明创建成功。
 # 5. MCP介绍
 
 ## MCP是什么
@@ -1388,9 +1941,9 @@ MCP Server 不止能提供工具，协议一共定义了三种能力：
 
 1. **启动与连接**：Host（Cline）根据配置**启动 MCP Server**（本地 stdio 模式下，Server 是 Host 拉起的子进程；远程模式则建立 HTTP 连接），Host 内部创建对应的 Client 与之通信
 2. **初始化握手**：Client 与 Server 互相「自报家门」，协商协议版本、确认双方能力（详细过程见下一节）
-3. **能力发现**：Client 调用 **`tools/list`** 向 Server 询问「你有啥工具呀」，Server 返回全部工具定义（名称 + 描述 + 参数 JSON Schema），同理还有 `resources/list`、`prompts/list`
+3. **能力发现**：Client 调用 `tools/list` 向 Server 询问「你有啥工具呀」，Server 返回全部工具定义（名称 + 描述 + 参数 JSON Schema），同理还有 `resources/list`、`prompts/list`
 4. **用户提问 + 模型决策**：Host 把**用户问题 + 所有工具定义**一起发给模型（即 3.4 节的 Function Calling 注入），模型推理后决定调用 `get_forecast`，输出结构化 tool call
-5. **执行与结果回传**：Host 拦截 tool call，让 Client 向 Server 发 **`tools/call`** → Server 调真实天气 API 执行 → 结果沿原路返回 → Host 把结果喂回模型 → 模型整合生成自然语言回复用户
+5. **执行与结果回传**：Host 拦截 tool call，让 Client 向 Server 发 `tools/call` → Server 调真实天气 API 执行 → 结果沿原路返回 → Host 把结果喂回模型 → 模型整合生成自然语言回复用户
 
 整个交互的时序图如下（四方：用户、MCP Server、Cline、模型）：
 
@@ -1401,7 +1954,7 @@ MCP Server 不止能提供工具，协议一共定义了三种能力：
 - **模型自始至终没有直接碰 Server**：模型只输出「我要调用 get_forecast」这段结构化文本，真正的网络请求、API 执行全是 Host/Client 干的——**模型是决策者，Host 是执行者**
 - **MCP 只覆盖「Client ↔ Server」这一段**：模型怎么选工具是 Function Calling 的事（3.4 节），用户怎么和 Host 交互是产品的事，MCP 管的是中间「发现能力 + 转发调用 + 回传结果」这条标准链路
 
-**面试一句话总结**：MCP 工作流程分五步：**Host 启动 Server → 双方握手协商能力 → `tools/list` 拉取工具定义 → 工具定义随用户问题一起发给模型、模型输出 tool call → Host 经 Client 转发 `tools/call` 给 Server 执行，结果回传模型生成最终回复**。全程模型只负责决策，真正的执行由 Host 和 Server 完成。
+**面试一句话总结**：MCP 工作流程分五步：**Host 启动 Server → 双方握手协商能力 →** `tools/list` 拉取工具定义 → 工具定义随用户问题一起发给模型、模型输出 tool call → Host 经 Client 转发 `tools/call` 给 Server 执行，结果回传模型生成最终回复。全程模型只负责决策，真正的执行由 Host 和 Server 完成。
 
 ## MCP协议握手过程
 
@@ -1413,17 +1966,17 @@ MCP 底层基于 **JSON-RPC 2.0**，握手本质上是 Client 和 Server 之间�
 
 通信通道（stdio 或 HTTP/SSE）建立后，Client（如 Claude Desktop）首先向 Server 发送 `initialize` 请求，**告知自己的身份、期望的协议版本和自身能力**。核心字段：
 
-- **`protocolVersion`**：Client 支持的协议版本，如 `"2024-11-05"`
-- **`clientInfo`**：Client 的名称和版本号
-- **`capabilities`**：Client 能提供给 Server 的功能，例如 `roots`（允许 Server 知道 Client 所处的工作区目录）、`sampling`（允许 Server **反向请求大模型**生成内容）
+- `protocolVersion`：Client 支持的协议版本，如 `"2024-11-05"`
+- `clientInfo`：Client 的名称和版本号
+- `capabilities`：Client 能提供给 Server 的功能，例如 `roots`（允许 Server 知道 Client 所处的工作区目录）、`sampling`（允许 Server **反向请求大模型**生成内容）
 
 ### 第二步：Server 返回响应
 
 Server 校验请求后返回成功响应，**确认连接并声明自己能提供什么**：
 
 - **版本协商**：检查 Client 发来的 `protocolVersion`，兼容则返回最终确定的版本号
-- **`serverInfo`**：Server 的名称和版本号
-- **`capabilities`**：**整个握手最关键的部分**——Server 在这里声明自己支持哪些能力：`tools`（提供工具调用）、`resources`（提供资源读取）、`prompts`（提供提示词模板）、`logging`（日志记录）
+- `serverInfo`：Server 的名称和版本号
+- `capabilities`：**整个握手最关键的部分**——Server 在这里声明自己支持哪些能力：`tools`（提供工具调用）、`resources`（提供资源读取）、`prompts`（提供提示词模板）、`logging`（日志记录）
 
 ### 第三步：Client 发送 notifications/initialized
 
@@ -1436,11 +1989,11 @@ Client 收到成功响应后，发送一条「已初始化」通知，**正式�
 
 握手最重要的意义在于**「互相摸底」**，且契约是强制的：
 
-- 如果第二步 Server 返回的 capabilities 里**没有声明 `tools: {}`**，Client 在后续整个会话期间**绝不会**向该 Server 发送任何工具调用请求
+- 如果第二步 Server 返回的 capabilities 里**没有声明** `tools: {}`，Client 在后续整个会话期间**绝不会**向该 Server 发送任何工具调用请求
 - 反过来，Client 没声明 `sampling`，Server 也不能反向请求大模型
 - 这保证了双方都只使用对方明确声明过的能力，避免无效请求
 
-**面试一句话总结**：MCP 握手是基于 JSON-RPC 2.0 的三步消息交换：**Client 发 `initialize`（报身份、版本、能力）→ Server 回响应（协商版本、声明支持 tools/resources/prompts 中的哪些）→ Client 发 `notifications/initialized` 通知收尾**。握手形成严格的能力契约——没声明的能力双方都不得使用，握手完成后才进入 `tools/list`、`tools/call` 等业务阶段。
+**面试一句话总结**：MCP 握手是基于 JSON-RPC 2.0 的三步消息交换：**Client 发** `initialize`（报身份、版本、能力）→ Server 回响应（协商版本、声明支持 tools/resources/prompts 中的哪些）→ Client 发 `notifications/initialized` 通知收尾。握手形成严格的能力契约——没声明的能力双方都不得使用，握手完成后才进入 `tools/list`、`tools/call` 等业务阶段。
 
 ## MCP有哪些模式，有什么区别，如何选择
 
@@ -1505,11 +2058,11 @@ MCP 的一个核心设计是**协议层与传输层分离**——无论用什么
 
 ### 先纠正一个认知偏差
 
-**大模型本身并不知道「MCP」的存在。** 模型看不到 Server、看不到握手、看不到协议——它唯一能看到的，就是每次 API 请求里 **`tools` 参数中的工具定义清单**。MCP 工具如何进入模型视野，是一条**由 Host 在中间翻译的四步链路**：
+**大模型本身并不知道「MCP」的存在。** 模型看不到 Server、看不到握手、看不到协议——它唯一能看到的，就是每次 API 请求里 `tools` 参数中的工具定义清单。MCP 工具如何进入模型视野，是一条**由 Host 在中间翻译的四步链路**：
 
 1. **用户配置**：用户在配置文件中声明要接哪些 MCP Server（如 Claude Code 的 `.mcp.json`、Claude Desktop 的配置文件）——这是唯一由人完成的环节，模型全程不参与
-2. **启动时连接与能力发现**：会话启动时，Host 为每个配置的 Server 创建 Client，完成三步握手，然后调用 **`tools/list`** 把每个 Server 的全部工具定义（名称 + 描述 + 参数 JSON Schema）拉回来，聚合进自己的工具目录
-3. **注入模型请求**：**每一轮**调用大模型时，Host 把所有可用工具（内置工具 + 各 MCP Server 的工具）的定义**全量拼进 API 请求的 `tools` 参数**。模型读到的只是工具的「说明书」，**不知道背后是内置代码还是某个 MCP Server**（注入机制详见 3.3 节）
+2. **启动时连接与能力发现**：会话启动时，Host 为每个配置的 Server 创建 Client，完成三步握手，然后调用 `tools/list` 把每个 Server 的全部工具定义（名称 + 描述 + 参数 JSON Schema）拉回来，聚合进自己的工具目录
+3. **注入模型请求**：**每一轮**调用大模型时，Host 把所有可用工具（内置工具 + 各 MCP Server 的工具）的定义**全量拼进 API 请求的** `tools` 参数。模型读到的只是工具的「说明书」，**不知道背后是内置代码还是某个 MCP Server**（注入机制详见 3.3 节）
 4. **模型按描述匹配调用**：模型根据每个工具的 **description** 判断该用哪个工具，输出 tool call；Host 拦截后查路由表，发现是 MCP 工具就经对应 Client 转发 `tools/call` 给 Server 执行
 
 ### 两个关键认知
@@ -1521,7 +2074,7 @@ MCP 的一个核心设计是**协议层与传输层分离**——无论用什么
 
 接入多个 Server、工具上百个时全量注入太占上下文，Host 会改用 **Tool Search 延迟加载**：系统提示里只放工具名清单，模型要用某个工具时先搜索、再加载它的完整 Schema（详见 3.10 节）。这只改变「注入时机」，不改变「模型通过 tools 参数感知工具」的本质。
 
-**面试一句话总结**：大模型不直接感知 MCP——它只看到每次请求 `tools` 参数里的工具定义。链路是：**用户配置 Server → Host 启动时握手并 `tools/list` 拉取工具定义 → 每轮请求注入 tools 参数 → 模型按 description 匹配并输出 tool call，Host 负责路由回对应 Server**。MCP 工具和内置工具在模型眼里完全同构，「来自哪个 Server」是 Host 层的路由信息。
+**面试一句话总结**：大模型不直接感知 MCP——它只看到每次请求 `tools` 参数里的工具定义。链路是：**用户配置 Server → Host 启动时握手并** `tools/list` 拉取工具定义 → 每轮请求注入 tools 参数 → 模型按 description 匹配并输出 tool call，Host 负责路由回对应 Server。MCP 工具和内置工具在模型眼里完全同构，「来自哪个 Server」是 Host 层的路由信息。
 
 ## 一个MCP服务 进程必须一直在吗
 
@@ -1555,15 +2108,15 @@ Server 进程必须一直在后台**循环监听（Event Loop）自己的 stdin*
 
 那「每次调用时临时拉起一个新进程、发完 `tools/call` 再杀掉」行不行？**也不符合规范**：
 
-- MCP 协议规定，任何 Server 启动后**必须先完成三步握手（`initialize`）**，Client 在握手完成前也不得发送业务请求（`ping` 除外）
-- Server 在**未握手的情况下直接收到 `tools/call`，规范约定应拒绝执行**，返回错误 **`-32002: Server not initialized`**
+- MCP 协议规定，任何 Server 启动后**必须先完成三步握手（**`initialize`），Client 在握手完成前也不得发送业务请求（`ping` 除外）
+- Server 在**未握手的情况下直接收到** `tools/call`，规范约定应拒绝执行，返回错误 `-32002: Server not initialized`
 - 也就是说「免握手直接用」这条路被协议本身堵死了；而每次调用都重新握手，又引入巨大的无谓开销
 
 ### 本质：MCP 的价值在于统一的生命周期与接口
 
 如果 Agent 直接调 `python weather.py`，它就退化成了**针对特定操作系统、特定语言的 CLI 调用脚本**——换个 Node.js 写的工具、换个远程服务，调用方式全得重写。而保持进程存活、走标准 `tools/call`，Agent **不需要关心**这个工具是 Python 写的还是 Node.js 写的、是本地进程还是远端服务器——它只需要**无脑往管道里发 JSON**。这正是 MCP 把 M×N 降为 M+N 的根基。
 
-**面试一句话总结**：不能停。握手只完成了「能力交换」，后续调用依赖存活进程上的三件事：**stdio 管道随进程销毁而断裂**、**`tools/call` 是发给运行中进程的 JSON-RPC 消息而非命令行调用**、**协议状态机强制先握手后调用（否则返回 -32002）**。MCP 的价值就是统一生命周期与接口——Agent 只发 JSON，不关心工具用什么语言写、跑在哪里。
+**面试一句话总结**：不能停。握手只完成了「能力交换」，后续调用依赖存活进程上的三件事：**stdio 管道随进程销毁而断裂**、`tools/call` 是发给运行中进程的 JSON-RPC 消息而非命令行调用、**协议状态机强制先握手后调用（否则返回 -32002）**。MCP 的价值就是统一生命周期与接口——Agent 只发 JSON，不关心工具用什么语言写、跑在哪里。
 
 ## 如何自己创建一个MCP工具，接入Agent使用
 
@@ -1695,7 +2248,7 @@ FastMCP 把 MCP 协议里**所有「与业务无关的样板工作」全部封�
 | 业务代码占比 | 一半协议样板 + 一半业务 | **几乎全是业务** |
 | 代码量 | 几十行起一个工具 | 几行起一个工具 |
 
-**面试一句话总结**：FastMCP 封装了 MCP 协议的全部样板工作：**stdin 监听循环、三步握手与状态机、JSON-RPC 解析封装、`tools/list` 的 Schema 自动生成、`tools/call` 的参数校验与分发执行**。开发者只需用装饰器注册业务函数，协议层完全无感——让写 MCP 工具的成本低到和写普通函数一样。
+**面试一句话总结**：FastMCP 封装了 MCP 协议的全部样板工作：**stdin 监听循环、三步握手与状态机、JSON-RPC 解析封装、**`tools/list` 的 Schema 自动生成、`tools/call` 的参数校验与分发执行。开发者只需用装饰器注册业务函数，协议层完全无感——让写 MCP 工具的成本低到和写普通函数一样。
 
 ## **为什么MCP不能延迟加载？底层原因是什么，为什么Skill可以？**
 
