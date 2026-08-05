@@ -3806,8 +3806,40 @@ skills:
 | `name` | 否 | 唯一标识符。使用小写字母和连字符。默认为文件名（不含扩展名） |
 | `description` | 否 | **最重要的字段**——主 Agent 靠它判断"什么时候该把任务交给你" |
 | `model` | 否 | 要使用的模型：`inherit`（默认）、`sonnet`、`opus`、`haiku` |
-| `tools` | 否 | 允许使用的工具列表。不指定则继承父级全部工具 |
-| `skills` | 否 | 预加载的 Skill 列表（Skill 名称） |
+| `tools` | 否 | 允许使用的工具白名单。不指定则继承父级全部工具（见 9.9 节） |
+| `disallowedTools` | 否 | 从继承的工具中排除指定工具。例如 `disallowedTools: Write, Edit` 可防止文件修改；`disallowedTools: mcp__github` 可禁用特定 MCP 服务器 |
+| `skills` | 否 | **启动时预加载**的 Skill 名称列表。系统会在 Subagent 启动时直接将对应 SKILL.md 的完整正文注入到 Subagent 上下文中 |
+| `mcpServers` | 否 | 为 Subagent 单独挂载的 MCP 服务器。这些 MCP 工具只对该 Subagent 生效，不会污染主对话上下文 |
+| `memory` | 否 | 持久记忆范围：`user`（跨项目）、`project`（随 Git 管理）、`local`（机器私有）。开启后系统自动赋予 Read/Write/Edit 工具用于管理记忆文件 |
+
+### Subagent 如何发现和使用 Skill
+
+Subagent 使用 Skill 有两种方式：
+
+**方式一：启动时预加载（Preload）**
+
+在 Subagent 的 frontmatter 中配置 `skills` 字段。系统启动时自动将对应 Skill 的**完整正文内容**直接注入到 Subagent 的上下文窗口中，无需等待执行时再去查找。
+
+```yaml
+# .claude/agents/security-reviewer.md
+---
+name: security-reviewer
+description: 专门进行安全代码审查
+skills:
+  - secure-coding     # 预加载 secure-coding Skill，启动时注入完整正文
+---
+```
+
+**方式二：运行时动态调用**
+
+即使没有在 `skills` 字段中预加载，只要 Subagent 拥有 `Skill` 工具，它就可以在执行过程中通过 `Skill` 工具主动调用项目、用户或 Plugin 中的 Skill。
+
+**Subagent 如何知道有哪些 Skill 可用？**
+
+不是由主 Agent 在运行时通知的。Subagent 通过两种途径获知 Skill：
+
+1. **静态注入（配置文件定义）**：在 Subagent 自身的 `.md` 配置文件中声明 `skills` 列表，启动时自动加载
+2. **自主检索（`Skill` 工具发现）**：Subagent 在运行过程中，通过内置的 `Skill` 工具自动扫描可用范围内的 Skill（包括项目级 `.claude/skills/`、用户级 `~/.claude/skills/` 以及 Plugin 提供的 Skill）
 
 ### 9.6.3 如何调用自定义 Subagent
 
@@ -3826,6 +3858,19 @@ skills:
 
 - **Skill**：给 Agent 加一段"操作说明"，告诉它**怎么做**某件事
 - **Subagent**：给 Agent 派一个"独立助手"，让它去**独立完成**某件事
+
+### Subagent 能否使用 Skill？
+
+**完全可以，而且这是推荐做法。** Subagent 可以使用 Skill，并且有两种使用方式：
+
+| 使用方式 | 说明 | 配置方式 |
+| --- | --- | --- |
+| **启动时预加载** | Subagent 启动时，系统自动将 Skill 的完整正文注入到 Subagent 的上下文窗口中 | 在 frontmatter 中声明 `skills` 字段 |
+| **运行时动态调用** | Subagent 在运行过程中，通过内置的 `Skill` 工具主动调用可用范围内的 Skill | 无需预配置，Subagent 拥有 `Skill` 工具即可 |
+
+**实际效果**：预加载的 Skill 会像"行为规范"一样嵌入 Subagent 的系统提示中，指导它在独立上下文中如何完成任务。这意味着你可以把"安全审查流程"写成 Skill，让 security-reviewer Subagent 启动时自动加载，这样 Subagent 既能享受上下文隔离的好处，又能遵循标准化的流程规范。
+
+> 详细说明见 9.6.2 节的 **Subagent 如何发现和使用 Skill**。
 
 ### 核心差异对比
 
@@ -3895,20 +3940,77 @@ Subagent（security-reviewer）  →  加载了该 Skill，在独立上下文中
 
 ---
 
-## 9.9 工具可见性：三级过滤
+## 9.9 工具可见性：Subagent 的工具权限体系
 
-Subagent 能看到的工具由三级过滤规则共同决定：
+Subagent 的工具权限采用 **"默认继承父级，但可精细化限制或扩展"** 的机制。
 
-### 第一级：全局禁止工具（所有 Agent 都不可用）
+### 9.9.1 默认可用的工具
 
-- `TaskOutput`（仅用于主线程向外输出）
-- `ExitPlanMode`（计划模式退出）
-- `EnterPlanMode`（进入计划模式）
-- `AskUserQuestion`（子 Agent 不能向用户提问）
-- `TaskStop`（不能从内部停止 task）
-- `Agent`（默认不能嵌套——普通 Subagent 不能再派生 Subagent）
+如果未在配置文件中指定 `tools` 字段，Subagent **默认继承主对话中可用的所有内置工具（Internal tools）和 MCP 工具**。
 
-### 第二级：异步 Agent 限制
+### 9.9.2 绝对不可用的工具（恒定禁止）
+
+以下工具由于依赖主界面 UI 或会话状态，**对 Subagent 恒定不可用**（即使显式写在 `tools` 字段中也无法使用）：
+
+| 工具 | 原因 |
+| --- | --- |
+| `AskUserQuestion` | 子 Agent 不能向用户提问 |
+| `EnterPlanMode` | 计划模式依赖主会话上下文 |
+| `ExitPlanMode` | 除非 `permissionMode` 显式设置为 `plan` |
+| `ScheduleWakeup` | 子 Agent 不能安排主会话定时唤醒 |
+| `WaitForMcpServers` | 依赖主会话的 MCP 连接状态 |
+
+### 9.9.3 如何控制 Subagent 的工具权限
+
+通过配置文件中的四个字段实现精细化控制：
+
+**① 白名单过滤（`tools` 字段）**
+
+只允许使用列表中的工具。不指定则默认继承父级全部工具。
+
+```yaml
+---
+name: read-only-reviewer
+tools: [Read, Grep, Glob, Bash]    # 只有读取和搜索能力
+---
+```
+
+Subagent 将失去修改文件（Write、Edit）和调用 MCP 的能力。
+
+**② 黑名单剔除（`disallowedTools` 字段）**
+
+继承主对话的全部工具，但排除指定项。
+
+```yaml
+---
+name: safe-worker
+disallowedTools: [Write, Edit]     # 防止文件修改
+# 或者禁用特定 MCP 服务器
+# disallowedTools: [mcp__github]
+---
+```
+
+**③ 嵌套派发能力（`Agent` 工具）**
+
+若在 `tools` 中包含 `Agent` 工具，该 Subagent 具备生成"子 Subagent"的能力（默认不可嵌套）。
+
+**④ 专属 MCP 服务器（`mcpServers` 字段）**
+
+可以为 Subagent 单独挂载特定的 MCP 服务器。这些 MCP 工具只对该 Subagent 生效，不会污染主对话的上下文。
+
+```yaml
+---
+name: db-worker
+mcpServers:
+  - database-mcp                    # 只有该 Subagent 能看到数据库 MCP 工具
+---
+```
+
+**⑤ 内存自动赋权（`memory` 字段）**
+
+如果开启了持久记忆（`memory: user / project / local`），系统会自动为该 Subagent 补充启用 `Read`、`Write` 和 `Edit` 工具以管理其记忆文件，即使这些工具不在白名单中。
+
+### 9.9.4 异步 Agent 的限制
 
 后台异步 Agent（`run_in_background: true`）只能使用白名单工具：
 
@@ -3919,11 +4021,24 @@ Subagent 能看到的工具由三级过滤规则共同决定：
 - `Skill`、`ToolSearch`（Skill 和工具搜索）
 - `EnterWorktree`、`ExitWorktree`（工作区管理）
 
-### 第三级：MCP 工具
+### 9.9.5 工具权限优先级总结
 
-MCP 工具（`mcp__` 前缀）始终允许，具有最高优先级。
+```
+MCP 工具（mcp__ 前缀） → 始终允许（最高优先级）
+      ↓
+全局禁止工具（AskUserQuestion 等） → 始终禁止
+      ↓
+白名单（tools 字段） → 只有列表中的允许
+      ↓
+黑名单（disallowedTools 字段） → 排除指定工具
+      ↓
+异步限制 → 后台 Agent 只能用白名单
+      ↓
+内存自动赋权（memory） → 自动补充 Read/Write/Edit
+      ↓
+其余工具 → 允许
 
----
+```
 
 ## 9.10 实用模式与最佳实践
 
