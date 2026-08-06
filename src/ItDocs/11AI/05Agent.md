@@ -3245,7 +3245,7 @@ Skill提供了冷门CLI工具的"说明书"，大模型在加载Skill后就知�
 | 场景 | 原因 |
 | --- | --- |
 | 本地文件操作 | 直接通过bash命令操作，无需中间层 |
-| 批处理/管道任务 | 利用 `\\\|`和`&&` 组合多个工具，一步完成 |
+| 批处理/管道任务 | 利用 `\\\\\\|`和`&&` 组合多个工具，一步完成 |
 | Token敏感场景 | 不需要加载大量工具定义，成本极低 |
 | 常见命令操作 | git、grep、curl等模型已内化的命令 |
 | 个人/轻量使用 | 灵活高效，适合个人开发场景 |
@@ -3839,7 +3839,7 @@ skills:
 不是由主 Agent 在运行时通知的。Subagent 通过两种途径获知 Skill：
 
 1. **静态注入（配置文件定义）**：在 Subagent 自身的 `.md` 配置文件中声明 `skills` 列表，启动时自动加载
-2. **自主检索（`Skill` 工具发现）**：Subagent 在运行过程中，通过内置的 `Skill` 工具自动扫描可用范围内的 Skill（包括项目级 `.claude/skills/`、用户级 `~/.claude/skills/` 以及 Plugin 提供的 Skill）
+2. **自主检索（**`Skill` 工具发现）：Subagent 在运行过程中，通过内置的 `Skill` 工具自动扫描可用范围内的 Skill（包括项目级 `.claude/skills/`、用户级 `~/.claude/skills/` 以及 Plugin 提供的 Skill）
 
 ### 9.6.3 如何调用自定义 Subagent
 
@@ -3927,6 +3927,47 @@ Subagent（security-reviewer）  →  加载了该 Skill，在独立上下文中
 | **可见性** | 用户直接对话 | 用户不直接对话（除非显式引用） |
 | **嵌套能力** | 可以启动 Subagent | 默认不能嵌套（再启动 Subagent） |
 
+### 主 Agent 如何发现有哪些 Subagent？
+
+主 Agent 并不是通过主动搜索去"寻找"Subagent 的，而是由 **Claude Code 框架在后台统一扫描注册**后，把可用 Subagent 的元数据（名称和描述）提供给主 Agent。整个过程分 4 步：
+
+**第一步：系统按优先级自动扫描注册**
+
+会话启动时，系统自动扫描以下位置，按优先级从高到低注册：
+
+| 优先级 | 位置 | 说明 |
+| --- | --- | --- |
+| 1（最高） | 托管设置 | 组织管理员部署的全局配置 |
+| 2 | CLI 标志 | `claude --agents '{...}'` 传入的内联 JSON |
+| 3 | `.claude/agents/`（项目级） | 当前项目根目录及子目录，随 Git 管理 |
+| 4 | `~/.claude/agents/`（用户级） | 用户家目录，跨项目共享 |
+| 5 | 插件目录 | 已安装 Plugin 内部的 `agents/` 目录 |
+
+**第二步：热加载与文件监听**
+
+会话运行期间，系统后台的文件监视器会监听 `.claude/agents/` 目录：
+
+- 新增或修改 Subagent 文件后，**几秒内自动检测并更新**
+- 主 Agent 处理下一个任务时就能感知到新 Subagent，无需重启会话
+- 例外：启动后才第一次创建 `agents` 文件夹，可能需要重启会话
+
+**第三步：元信息注入主 Agent 上下文**
+
+系统解析 YAML frontmatter 后，将所有已注册 Subagent 的 `name` 和 `description` 组合成列表，注入到主 Agent 的系统提示词或 `Agent` 工具定义中。主 Agent 看到的工具说明会包含类似这样的信息：
+
+```
+可用 Subagent 列表：
+- code-improver: Scans files and suggests improvements for readability, performance, and best practices.
+- Explore: Fast read-only agent optimized for code search and code base exploration.
+```
+
+**第四步：主 Agent 根据 description 进行任务派发**
+
+| 派发方式 | 说明 |
+| --- | --- |
+| **隐式委托** | 主 Agent 将任务需求与所有 Subagent 的 `description` 进行语义匹配，匹配成功则调用 `Agent(subagent_type="...")` 委派任务 |
+| **显式指定** | 用户在对话中直接 `@subagent-name` 或明确要求"使用 code-improver 代理"，主 Agent 直接按名称精准调用 |
+
 ### 主 Agent 对 Subagent 的管控
 
 - 主 Agent 通过 `Agent` tool 创建 Subagent
@@ -3940,7 +3981,7 @@ Subagent（security-reviewer）  →  加载了该 Skill，在独立上下文中
 
 ---
 
-## 9.9 工具可见性：Subagent 的工具权限体系
+## 9.9 Subagent 可以使用哪些工具
 
 Subagent 的工具权限采用 **"默认继承父级，但可精细化限制或扩展"** 的机制。
 
@@ -3964,7 +4005,7 @@ Subagent 的工具权限采用 **"默认继承父级，但可精细化限制或�
 
 通过配置文件中的四个字段实现精细化控制：
 
-**① 白名单过滤（`tools` 字段）**
+**① 白名单过滤（**`tools` 字段）
 
 只允许使用列表中的工具。不指定则默认继承父级全部工具。
 
@@ -3977,7 +4018,7 @@ tools: [Read, Grep, Glob, Bash]    # 只有读取和搜索能力
 
 Subagent 将失去修改文件（Write、Edit）和调用 MCP 的能力。
 
-**② 黑名单剔除（`disallowedTools` 字段）**
+**② 黑名单剔除（**`disallowedTools` 字段）
 
 继承主对话的全部工具，但排除指定项。
 
@@ -3990,11 +4031,11 @@ disallowedTools: [Write, Edit]     # 防止文件修改
 ---
 ```
 
-**③ 嵌套派发能力（`Agent` 工具）**
+**③ 嵌套派发能力（**`Agent` 工具）
 
 若在 `tools` 中包含 `Agent` 工具，该 Subagent 具备生成"子 Subagent"的能力（默认不可嵌套）。
 
-**④ 专属 MCP 服务器（`mcpServers` 字段）**
+**④ 专属 MCP 服务器（**`mcpServers` 字段）
 
 可以为 Subagent 单独挂载特定的 MCP 服务器。这些 MCP 工具只对该 Subagent 生效，不会污染主对话的上下文。
 
@@ -4006,7 +4047,7 @@ mcpServers:
 ---
 ```
 
-**⑤ 内存自动赋权（`memory` 字段）**
+**⑤ 内存自动赋权（**`memory` 字段）
 
 如果开启了持久记忆（`memory: user / project / local`），系统会自动为该 Subagent 补充启用 `Read`、`Write` 和 `Edit` 工具以管理其记忆文件，即使这些工具不在白名单中。
 
@@ -4087,9 +4128,147 @@ MCP 工具（mcp__ 前缀） → 始终允许（最高优先级）
 
 **一句话总结**：Subagent 由主 Claude Agent 在推理过程中自主决定触发，通过调用 `Agent` tool 将子任务发送到独立上下文窗口执行，以保护主会话上下文不被大量中间结果污染，同时支持并行处理提升效率。
 
-# 10. Rules介绍
+# 10. Rules（规则文件）介绍
+
+## 10.1 什么是 Rules？
+
+当项目规模增长，`CLAUDE.md` 变得臃肿时，可以把规则拆分到 `.claude/rules/` 目录下。这个目录下的每个 Markdown 文件就是一个 **Rule（规则文件）**，是 `CLAUDE.md` 的模块化补充。
+
+Rules 的核心价值是 **按需加载**——只有匹配路径的规则才消耗 Token，不匹配的规则永远不会进入上下文。
+
+## 10.2 为什么需要 Rules？
+
+| 痛点 | Rules 怎么解决 |
+| --- | --- |
+| CLAUDE.md 变成 300 行"无人维护"的巨兽 | 按主题拆分成小文件，每个文件只聚焦一件事 |
+| 前端规范和后端规范混在一起 | 通过 `paths` 路径作用域，前端规则只在改前端代码时加载 |
+| 所有规则每次都消耗 Token | 无 `paths` 的规则常驻，有 `paths` 的规则按需加载 |
+| 多人协作时规则维护困难 | 每个模块的规则由对应的人维护各自文件，互不干扰 |
+
+## 10.3 两种规则类型
+
+| 类型 | 配置 | 加载时机 | 适用场景 |
+| --- | --- | --- | --- |
+| **全局规则** | 没有 `paths` 字段 | 会话启动时加载，每次 Prompt 常驻 | 通用规范：Commit 格式、代码风格、安全红线 |
+| **路径限定规则** | 包含 `paths:` YAML frontmatter | 只有当 Claude 读/写匹配路径的文件时才加载 | 模块规范：API 规范、React 规则、数据库规范 |
+
+## 10.4 目录结构示例
+
+```
+.claude/rules/
+├── code-style.md              # 代码风格（全局规则，无 paths）
+├── testing.md                 # 测试规范（全局规则，无 paths）
+├── security.md                # 安全要求（全局规则，无 paths）
+├── git.md                     # Git 提交规范（全局规则，无 paths）
+├── api-conventions.md         # API 设计规范（路径限定）
+├── frontend/
+│   ├── react.md               # React 特定规则（路径限定）
+│   └── styles.md              # 样式规范（路径限定）
+└── backend/
+    ├── api.md                 # API 设计（路径限定）
+    └── database.md            # 数据库规范（路径限定）
+```
+
+## 10.5 配置示例
+
+### 全局规则（无 paths）
+
+```markdown
+# .claude/rules/git.md
+# Git 提交规范
+- Commit 信息格式：type(scope): description
+- 类型：feat / fix / refactor / chore / docs / test
+- 禁止提交包含调试代码（console.log、debugger）
+```
+
+此类规则**每次会话都加载**，效果等同于写在 `CLAUDE.md` 里，但文件更小、更聚焦。
+
+### 路径限定规则（有 paths）
+
+```markdown
+# .claude/rules/frontend/react.md
+---
+paths:
+  - "src/components/**/*.tsx"
+    - "src/pages/**/*.tsx"
+---
+
+# React 组件开发规范
+1. 所有组件必须使用 TypeScript interface 声明 Props
+2. 禁止使用内联样式，统一使用 Tailwind CSS 类名
+3. 新增组件必须在同级目录下补全 .test.tsx 单元测试文件
+4. 使用 React functional components with hooks，禁止使用 class components
+```
+
+`paths` 字段和正文之间用 `---` 分隔。当 Claude 在改后端代码时，这条规则**根本不会出现**。只有它进入 `src/components/` 或 `src/pages/` 时才加载。
+
+### 支持的通配符语法
+
+```yaml
+---
+paths:
+  - "src/api/**/*.ts"             # ** 匹配任意层级目录
+    - "lib/**/*.ts"
+    - "src/**/*.{ts,tsx}"           # brace expansion：同时匹配 .ts 和 .tsx
+    - "src/handlers/**/*.ts"
+---
+```
+
+## 10.6 Rules 的加载时机
+
+Rules 的加载时机取决于是否有 `paths` 限制：
+
+| 规则类型 | 加载时机 |
+| --- | --- |
+| **全局规则**（无 `paths`） | 会话启动时加载，每次 Prompt 常驻内存 |
+| **路径限定规则**（有 `paths`） | 当任务触及匹配路径的文件时动态加载：<br>- `Read` / `Grep` / `Glob` 查看匹配文件时<br>- `Write` / `Edit` 修改或创建匹配文件时 |
+| **规则变更**（热加载） | 会话运行中新增、修改或删除 `.claude/rules/` 文件时，**下次 Tool 调用或 Prompt 时自动重新读取**，无需重启会话 |
+
+### 完整加载流程图
+
+```
+会话启动
+    ↓
+扫描 .claude/rules/ 目录
+    ↓
+加载所有无 paths 的规则 → 注入上下文（常驻）
+    ↓
+等待任务
+    ↓
+Claude 读/写文件 → 检查文件路径
+    ↓
+匹配某个 rules 的 paths？ → 是 → 加载该规则到上下文
+    ↓
+不匹配 → 跳过，不消耗 Token
+```
+
+## 10.7 用户级 Rules
+
+除了项目级的 `.claude/rules/`，还可以在 `~/.claude/rules/` 下放置用户级规则：
+
+- 存储位置：`~/.claude/rules/*.md`
+- 适用范围：**所有项目**
+- 优先级：**低于**项目级 `.claude/rules/`
+- 适合存放：个人编码偏好、通用工作流、编辑器无关的规范
+
+## 10.8 CLAUDE.md vs Rules vs Skill 对比
+
+| 维度 | CLAUDE.md | Rules | Skill |
+| --- | --- | --- | --- |
+| **加载时机** | 每次会话全量加载 | 按路径匹配加载（无 paths 的常驻） | 需要时加载（手动/自动匹配） |
+| **内容类型** | 永远相关的项目知识 | 按文件类型的规范 | 特定任务的流程指导 |
+| **上下文成本** | 每次都消耗 | 无 paths 常驻消耗，有 paths 匹配时才消耗 | 使用时才消耗 |
+| **适合场景** | 项目架构、常用命令、核心原则 | Python 规范、API 规范、模块规则 | 部署流程、调试步骤、代码审查 |
+| **谁能创建** | 任何人 | 任何人 | 任何人 |
+
+### 选择建议
+
+- 如果是**项目全局概览、最高优先级的原则** → CLAUDE.md
+- 如果是**具体的编码规范、按模块/目录区分的指令** → Rules
+- 如果是**特定任务的流程指导**（部署、审查、调试） → Skill
 
 # 11. Hooks介绍
+
 
 Hooks如何触发，如何保证一定会触发的
 
@@ -4099,7 +4278,7 @@ hooks中需要调用大模型吗？
 
 如何自定义hooks
 
-# 12. OpenCode 与 Claude Code 对应的概念？
+# 12. OpenCode与Claude Code对应的概念？
 
 ## 一句话结论
 
