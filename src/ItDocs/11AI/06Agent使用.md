@@ -1,26 +1,271 @@
 # AI的边界
 
 
-# 高效利用token，减少token消耗
+# 1. 高效利用token，减少token消耗
 
 
-# AGENTS.md
+# 2. AGENTS.md使用
 
-AGENTS.md 是一个简单的开放格式，用于指导 AI Coding Agent 在你的项目中工作。你可以把它理解为给 AI 看的 README——README.md 是给人类看的项目说明，AGENTS.md 则是给 AI Agent 看的项目指令，包含构建命令、编码规范、测试要求、安全注意事项等 AI 需要知道的上下文。
+AGENTS.md 是给 AI Coding Agent 看的**项目指令文件**，相当于给 AI 的 README——README.md 是给人看的项目说明，AGENTS.md 是给 AI Agent 看的项目上下文指令，包含构建命令、编码规范、测试要求、安全注意事项等 AI 需要知道的信息。它与 CLAUDE.md **等价**，内容格式完全通用，一个软链接即可兼容。
 
-写进 AGENTS.md 的内容
-只有两类内容应该直接写在 AGENTS.md 中：
-1. AI 理解项目全貌的必要信息——技术栈、仓库结构、核心模块、分层架构
-2. 违反会直接导致问题的硬性规则——编码规约、命名约定、禁止项
-不写进去的内容
-其他详细信息通过文档链接和引用指向对应的文档：
+## 2.1 官方建议的使用方式
+
+官方推荐的使用方式非常简单：
+
+1. **在仓库根目录创建一个 AGENTS.md 文件**
+2. **写上对 Agent 有用的内容**——项目概述、构建测试命令、代码风格、安全注意事项
+3. **补充额外指引**——commit 规范、部署步骤、安全陷阱，任何你会告诉项目新成员的东西
+4. **Monorepo 嵌套**——大型 monorepo 可以在子目录放嵌套的 AGENTS.md，Agent 会自动读取最近的那个（OpenAI 自己的仓库有 88 个 AGENTS.md）
+
+格式上没有强制要求，就是标准的 Markdown，用什么标题、写什么内容完全自由。
+
+## 2.2 哪些应该写进 AGENTS.md 中
+
+AGENTS.md 的第一原则是**渐进式披露**——它是一张**地图，不是一本手册**。建议控制在 **200 行以下**。什么都要写等于什么都没写，文件膨胀到 5000 行，AI 的注意力被稀释，关键规则反而被忽略。
+
+只有**两类内容**应该直接写入：
+
+1. **AI 理解项目全貌的必要信息**——技术栈、仓库结构、核心模块、分层架构
+2. **违反会直接导致问题的硬性规则**——编码规约、命名约定、禁止项
+
+### 不写进 AGENTS.md 的内容
+
+其他详细信息通过文档链接引用，不要在 AGENTS.md 中展开：
+
+```
 AGENTS.md（地图）
   → docs/architecture.md          分层架构详细说明
   → docs/development.md           开发环境搭建
-  → docs/design-docs/ref-.md     参考项目架构说明
-  → docs/design-docs/-patterns.md 组件使用模式
+  → docs/design-docs/*.md         组件使用模式
+```
 
-判断一条信息该放 AGENTS.md 还是放详细文档，有一个简单的标准：如果 AI 不知道这条信息就会写出错误的代码，放 AGENTS.md；如果只是写出不够好的代码，放详细文档，AGENTS.md 里放链接。
+**判断标准**：如果 AI 不知道这条信息就会写出**错误**的代码，放 AGENTS.md；如果只是写出**不够好**的代码，放详细文档，AGENTS.md 里放链接。
+
+## 2.3 注意事项
+
+### 2.3.1 通过 Bad Case 驱动迭代
+
+不要试图一次写完 AGENTS.md。从 **实际使用中发现的 bad case 出发** ：
+
+1. AI 犯了一个错误（用了错误的命名风格、在错误的层级引入了依赖）
+2. 思考：如果 AGENTS.md 里多写一条规则，AI 是不是就不会犯这个错
+3. 判断改哪里：全局规则→AGENTS.md，模块细节→对应的 docs/
+
+这是最高效的迭代方式。 **AGENTS.md 需要随着项目演进持续调整。**
+
+### 2.3.2 规则要有执行力
+
+重要的规则必须有对应的**自动化检查**。AGENTS.md 中写"禁止跨层依赖"，如果没有 lint 脚本来检查，AI 和人都会违反。
+
+**规则优先级**： **能自动化检查的** > **写在 AGENTS.md 中的** > **口头约定的**
+
+### 2.3.3 团队共建
+
+鼓励团队成员在遇到 AI bad case 时主动补充规则，但要遵循"地图"原则：
+
+| 改动类型 | 维护位置 | 举例 |
+| --- | --- | --- |
+| 全局性的架构约定或编码规约 | **AGENTS.md** | 所有 Controller 统一 POST |
+| 某个模块的具体开发规范 | 对应的 **docs/** 文档 | 某个 Service 的调用约定 |
+| 前端组件的使用模式 | 组件模式文档 | ProTable 的某个 prop 必须传特定值 |
+| 参考项目的架构说明 | 对应的 **ref-**\* 文档 | 某个开源项目的架构分层介绍 |
+
+如果细节规则都怼进 AGENTS.md，上下文会膨胀，重要的规则反而被淹没。
+
+### 2.3.4 标注给谁看
+
+团队中不是所有人都用 AI 工具。明确标注每个文件的目标读者：
+
+| 文件 | 读者 | 说明 |
+| --- | --- | --- |
+| **README.md** | 人 | 项目介绍、快速开始，给人类看的入口 |
+| **AGENTS.md** | AI 为主，人可浏览 | AI 工具自动读取的项目指令 |
+| **docs/\*.md** | AI 为主，人可参考 | 各模块的开发手册 |
+| **scripts/\*.sh** | 人和 AI 都用 | 构建、启动、部署脚本 |
+
+README.md 和 AGENTS.md 是互补的——README.md 聚焦快速开始和贡献指南；AGENTS.md 聚焦构建命令、编码规范和验证流程。脚本是人和 AI 共用的，AGENTS.md 和 docs/ 下的文档主要是给 AI 的上下文。
+
+## 2.4 实践经验
+
+### 2.4.1 仓库聚合——解决上下文割裂
+
+采用 **monorepo** 结构，前后端代码放在同一个仓库中：
+
+```
+project-root/
+  server/                        # 后端（Spring Boot）
+  web/                           # 前端（React + TypeScript）
+  user-guide/                    # 用户手册（Markdown）
+  reference-projects/            # 参考项目（git submodule）
+  scripts/                       # 构建、启动、检查脚本
+  docs/                          # 架构文档、设计文档
+```
+
+**好处**：AI 在同一个窗口中就能看到 Controller 接口定义和对应的前端 API 调用，实现真正的全栈编码。AI 还可以直接基于代码变更同步更新用户手册。
+
+### 2.4.2 统一环境配置——让 AI 能启动项目
+
+每个人的本地环境配置方式不统一（IDE JVM 参数、shell export、.bashrc），AI 工具不知道环境变量在哪。解决方案：
+
+1. 所有本地环境变量统一配置在 **\~/.\_env** 文件中（纯 KEY=VALUE 格式），启动脚本自动 source
+2. 放在 \~ 下而非项目目录，避免意外提交到 Git
+3. AGENTS.md 中写明优先级：先查 \~/.\_env，不存在则回退到 application.yml 缺省值
+4. 配套一键启动脚本，封装 JDK 检测、优雅关闭旧进程、健康检查轮询等逻辑
+
+AI 不需要理解这些细节，只需要调用一个命令。这是 AGENTS.md 中"快速命令"章节的核心价值——把复杂的环境操作封装成一条命令，降低 AI 的认知负担。
+
+### 2.4.3 验证闭环——改完代码不算完，跑通接口才算完
+
+**curl 验证规范**：
+
+1. 每个 curl **独立执行**——禁止串联多个 curl，一个命令只做一件事
+2. 用**临时文件传递数据**——curl 输出写入 /tmp/ 下的临时文件，后续用 python3 独立解析
+3. **Token 获取模板化**——登录→写文件→提取 token→后续请求携带
+4. **排查路径明确**——日志文件位置、数据库连接方式
+5. **最好开子Agent去验证，1、**上下文隔离（最核心原因）通常会产生海量的终端日志和输出。污染主上下文  2、AI 生成模型与人类程序员一样，存在“自我审查盲区”。 3、权限与安全边界隔离，在复杂系统中，验证阶段可能需要运行编译脚本、启动沙箱环境或执行集成测试。可以限制为只读或仅允许执行测试命令（Read, Bash），防止在验证过程中误触修改代码的逻辑
+
+为什么这么严格？因为 AI Agent 在 shell 中执行命令时经常遇到兼容性问题。比如 zsh 下管道 + 方括号的 glob 问题，会导致 `curl | python3 -c "print(data['key'])"` 直接报错。用临时文件中转虽然多了一步，但稳定性高得多。
+
+**示例流程**：
+
+```
+# Step 1: 登录，结果写文件
+curl -s -X POST http://localhost:8080/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin"}' > /tmp/login.json
+
+# Step 2: 提取 token（独立命令）
+python3 -c "import json; print(json.load(open('/tmp/login.json'))['data']['token'])" > /tmp/token.txt
+
+# Step 3: 业务接口调用
+TOKEN=$(cat /tmp/token.txt)
+curl -s -X POST http://localhost:8080/providers/list \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"page":0,"size":10}' > /tmp/result.json
+```
+
+**验证不止于编译通过**。
+
+<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">验证手段主要是两类：</span>
+
+**<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">后端：bash / curl 验证接口</span>**<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">。这是最基础也最可靠的验证方式——启动服务，curl 调接口，解析响应，确认数据正确。上面的 curl 验证规范就是为此设计的。</span>
+
+**<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">前端：Agent Browser 验证页面</span>**<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">。纯 curl 只能验证接口返回值，但前端页面的渲染、交互、布局问题是看不到的。在调试前端疑难杂症时，我会使用 AI 工具的 Agent Browser 能力（如 Qoder 的 </span>`agent-browser`<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">），让 Agent 自己打开浏览器、操作页面、截屏对比，获取完整的视觉上下文来定位问题。这比让 Agent 猜测 CSS 问题要高效得多。</span>
+
+<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">在我的实践中，验证闭环不仅仅是「代码能编译」，而是「功能能跑通」：</span>
+
+验证闭环不仅仅是"代码能编译"，而是"功能能跑通"：
+
+- lint 和格式检查在每次代码变更后自动触发
+- 通过启动脚本把应用真正启动起来，用 curl 跑接口验证
+- 在 Spec 的 Design 文档里写入验证方案，告诉 Agent"写完代码不算完，自测过功能才算完"
+
+### 2.4.4 自动化检查——规则的执行力
+
+AGENTS.md 中写的规则，如果没有自动化检查，AI 和人都会违反。
+
+**分层依赖检查示例**：
+
+```
+L0 - entity/          → 只允许依赖 common
+L1 - repository/      → 只允许依赖 entity, common
+L2 - core/            → 横切关注点，不允许依赖业务包
+L3 - config/          → 允许依赖 core, service
+L4 - service/         → 业务核心层
+L5 - controller/      → 只允许依赖 service, core, common
+```
+
+用一个 shell 脚本扫描所有 Java 文件的 import 语句，按包路径判断所属层级，检查是否违反依赖方向。违规时输出可操作的错误信息：
+
+```
+✗ service/client/impl/SomeService.java 导入了 entity.SomeEntity
+  原因: 客户端实现禁止直接依赖业务 Entity，须通过 DTO 传递数据
+  修复: 在编排层完成 Entity→DTO 转换，客户端只接收 DTO
+```
+
+错误信息格式：**WHAT**（违规了什么）+ **WHY**（为什么不允许）+ **HOW**（怎么修复）。AI 读到这条错误信息后，能直接按照 HOW 的指引去修复，不需要额外的上下文。
+
+通过 Makefile 提供统一入口：
+
+```
+lint-arch:    ./scripts/lint-deps.sh      # 分层依赖检查
+lint-format:  mvn spotless:check          # 格式检查
+format:       mvn spotless:apply          # 格式修复
+build:        mvn package -DskipTests     # 构建
+test:         mvn test                    # 测试
+```
+
+AI Agent 不需要记住每个检查命令的具体写法，只需要知道 `make lint-arch` 和 `make lint-format`。
+
+### 2.4.5 参考项目引入——给 AI 喂够上下文
+
+AI 不认识闭源组件，维护使用文档又总是滞后于实现。解决方案是**直接引入源码**：
+
+```
+reference-projects/
+  higress/                # 开源 Higress 网关内核源码
+  nacos/                  # 开源 Nacos 注册配置中心源码
+  pro-components/         # 私域组件库源码（TypeScript）
+  other-product-backend/          # 其他产品后端（Go）
+  other-product-frontend/         # 其他产品前端（React）
+  himarket/               # 开源 HiMarket AI 开放平台（Spring Boot）
+```
+
+源码永远不会过时，它就是最准确的文档。AI 不会写私域组件的代码时，可以直接读源码里的 TypeScript 定义和实现。
+
+同时，为每个参考项目维护一份架构说明文档（docs/design-docs/ref-\*.md），帮助 AI 快速理解参考代码的结构。ref 文档是"地图"，告诉 AI 参考项目的整体结构和关键模块在哪里；reference-projects 是"源码"，AI 需要细节时直接去读。
+
+**为什么不只写文档**：
+
+| 方式 | 优点 | 缺点 |
+| --- | --- | --- |
+| 只写使用文档 | 轻量、聚焦 | 滞后于实现、覆盖不全、边界情况缺失 |
+| 引入源码 + 架构说明 | 永远准确、覆盖完整 | 仓库体积增大、需要管理 submodule |
+
+## 2.5 通用模板
+
+基于实践经验，提炼出一个通用模板：
+
+```
+# AGENTS.md
+
+## 1. 项目概述
+一段话说清楚：项目是什么、技术栈、仓库结构。
+前 10 行必须让 AI 建立项目心智模型。
+
+## 2. 快速命令
+构建、启动、格式化、质量检查的命令速查表。
+环境变量配置说明（env 文件位置、启动脚本自动 source）。
+
+## 3. 后端架构
+包结构树（ASCII）+ 每个包的用途注释。
+核心子系统的简要说明 + 详细文档链接。
+前后端术语映射（如有差异）。
+
+## 4. 前端架构
+技术栈、路由方案、API 层约定、组件库规范。
+详细文档链接。
+
+## 5. 关键约定
+5-10 条硬性编码规则（违反会直接导致问题的）。
+每条规则附详细文档链接。
+
+## 6. 本地开发及验证流程
+「改 → 构建 → 启动 → 验证」的完整闭环。
+curl 验证模板、Token 获取、日志路径。
+
+## 7. 质量检查
+lint、format、build、test 命令矩阵。
+
+## 8. 参考项目约定
+参考项目列表 + 优先级规则。
+
+## 9. 文档导航
+所有详细文档的索引表。
+```
+
+建议控制在 **200 行以下**。超过这个范围，考虑将细节拆分到 docs/ 下的专题文档。
 
 # 哪些应该作为skill
 
