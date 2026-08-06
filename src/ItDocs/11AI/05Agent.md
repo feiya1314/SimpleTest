@@ -3245,7 +3245,7 @@ Skill提供了冷门CLI工具的"说明书"，大模型在加载Skill后就知�
 | 场景 | 原因 |
 | --- | --- |
 | 本地文件操作 | 直接通过bash命令操作，无需中间层 |
-| 批处理/管道任务 | 利用 `\\\\\\|`和`&&` 组合多个工具，一步完成 |
+| 批处理/管道任务 | 利用 `\\\\\\\|`和`&&` 组合多个工具，一步完成 |
 | Token敏感场景 | 不需要加载大量工具定义，成本极低 |
 | 常见命令操作 | git、grep、curl等模型已内化的命令 |
 | 个人/轻量使用 | 灵活高效，适合个人开发场景 |
@@ -3283,7 +3283,9 @@ CLI工具的比重会越来越大，而MCP的比重会逐渐缩小，但不会�
 - **MCP** → 留在企业和云端的高安全场景
 - **Skill** → 作为"胶水层"，在上层编排和指导两者的使用
 
-# 8. command介绍
+# 8. Command 介绍
+
+> **重要更新**：Claude Code 已将 Slash Commands 与 Skills 合并。过去两者是独立的两种机制，现在统一为 Skill 体系。你什么都不用做——现有的 Slash Commands 继续正常工作，迁移是无感的。
 
 ## 8.1 Command 是什么？
 
@@ -3293,13 +3295,19 @@ CLI工具的比重会越来越大，而MCP的比重会逐渐缩小，但不会�
 
 | 维度 | 说明 |
 | --- | --- |
-| **是什么** | 会话中通过 `/` 前缀手动触发的操作。包括内置命令（硬编码逻辑）和通过 `/` 调用的 Skills |
+| **是什么** | 会话中通过 `/` 前缀手动触发的操作，本质是 Skill 的手动调用入口 |
 | **为什么需要** | 提供快捷方式来控制会话行为，无需用自然语言描述意图 |
-| **谁触发** | **用户**输入 `/xxx`（只有用户能触发 Command） |
-| **怎么触发** | 用户在 prompt 开头输入 `/xxx`，可带参数。文本跟在命令名后面成为参数 |
+| **谁触发** | **用户**输入 `/xxx` |
+| **怎么触发** | 用户在 prompt 开头输入 `/xxx`，可带参数 |
 | **什么时候触发** | 用户需要执行特定操作时（切换模型、清空上下文、审查代码、部署等） |
 | **什么场景使用** | 会话控制、模型切换、代码审查、上下文管理、部署上线等 |
-| **如何使用** | 直接在对话中输入 `/命令名 [参数]` |
+
+### Command 的两种来源
+
+| 来源 | 说明 | 示例 |
+| --- | --- | --- |
+| **内置命令** | CLI 二进制中硬编码的固定逻辑 | `/clear`、`/model`、`/exit`、`/compact` |
+| **Skill（手动调用）** | 通过 `/技能名` 触发 Skill，本质是 Skill 的手动入口 | `/code-review`、`/deploy`、`/debug` |
 
 ---
 
@@ -3325,59 +3333,122 @@ Agent   = 执行者（真正干活的）
 
 ---
 
-## 8.3 Command 与 Skill 的关系
+## 8.3 Slash Commands 与 Skills 合并
 
-### 8.3.1 核心区别：谁决定执行时机
+### 8.3.1 合并的背景
 
-| 对比维度 | Command | Skill |
+过去 Claude Code 中存在两种平行的交互逻辑：
+
+| 旧概念 | 触发方式 | 本质 |
 | --- | --- | --- |
-| **触发者** | **用户**手动输入 `/xxx` | **用户手动** 或 **Claude 自动匹配** |
+| **Slash Commands** | 用户手动 `/xxx` | 用户触发的快捷指令，用于显式披露上下文 |
+| **Skills** | 用户手动 `/xxx` 或 Claude 自动匹配 | 模型根据需要自主调用的能力插件 |
+
+两者虽然功能相似，但底层实现完全不同，Claude 需要同时维护两套工具（`SlashCommand` Tool 和 `Skill` Tool），增加了系统复杂度和认知负荷。
+
+### 8.3.2 为什么合并？
+
+**核心原因：渐进式披露（Progressive Disclosure）**
+
+随着模型能力的增强，开发者面临的最大挑战不再是"模型不够聪明"，而是**上下文窗口浪费**。Skills 相比 Slash Commands 有更强大的动态加载能力：
+
+- **Slash Commands 的局限**：静态的指令模板，无法在加载后进一步按需加载更多内容
+- **Skills 的优势**：可以在 SKILL.md 中引用其他文件，实现**多层级的动态上下文加载**。模型只有在真正需要某项知识时，才会通过 Skill 去读取相关文件
+
+合并后，Claude 不再需要同时维护 `SlashCommand` Tool 和 `Skill` Tool 两套工具，用户的**心智模型也更简洁**——所有通过 `/` 触发的东西都是 Skill，只是有的可以手动调，有的可以自动调。
+
+### 8.3.3 调用权限的精细控制
+
+合并后，你可以精确控制每个 Skill 的调用方式。在 SKILL.md 的 frontmatter 中新增了两个控制字段：
+
+```yaml
+---
+description: 当用户需要代码审查时使用
+# 控制用户是否能通过 /技能名 手动调用
+user-invocable: false              # false = 用户无法通过斜杠命令手动调用
+# 控制 Claude 是否能自动匹配调用
+disable-model-invocation: true     # true = Claude 不会自动调用这个 Skill
+---
+```
+
+| 字段 | 默认值 | 作用 |
+| --- | --- | --- |
+| `user-invocable` | `true` | 设为 `false` 时，用户无法通过 `/技能名` 手动调用，只能由 Claude 自动匹配 |
+| `disable-model-invocation` | `false` | 设为 `true` 时，Claude 不会自动调用这个 Skill，只能由用户手动 `/技能名` 触发 |
+
+这解决了社区一直关心的问题：**有些命令我只想自己用，不希望模型自作主张**。
+
+### 8.3.4 四种调用权限组合
+
+| user-invocable | disable-model-invocation | 效果 |
+| --- | --- | --- |
+| `true`（默认） | `false`（默认） | 用户可 `/` 手动调，Claude 也可自动匹配 |
+| `true` | `true` | 仅用户可手动调，Claude 不自动匹配 |
+| `false` | `false` | 仅 Claude 自动匹配，用户不能手动调 |
+| `false` | `true` | 谁都不能调（无意义，不推荐） |
+
+### 8.3.5 向后兼容
+
+所有现有的 Slash Commands 配置会自动迁移到 Skill 体系，无需任何手动操作。
+
+---
+
+## 8.4 Command 与 Skill 的关系
+
+### 8.4.1 合并后的关系
+
+合并后，**Command 和 Skill 不再是两个独立的概念**。Skill 是统一的能力单元，Command 是 Skill 的一种调用方式（手动 `/` 触发）。
+
+```
+Skill 体系（统一的能力单元）
+├── 手动调用（通过 `/` 前缀） → 你看到的"Command"
+└── 自动调用（Claude 匹配 description） → Claude 自动加载
+```
+
+### 8.4.2 谁决定执行时机
+
+| 对比维度 | 手动调用（传统叫 Command） | 自动调用（Claude 匹配） |
+| --- | --- | --- |
+| **触发者** | **用户**手动输入 `/xxx` | **Claude** 自动匹配 description |
 | **执行时机** | 你明确要求时才执行 | Claude 发现上下文匹配时自动加载 |
 | **控制粒度** | 你完全掌控"什么时候做" | 你交给 Claude 判断"什么时候做" |
-| **调用 Agent** | ✅ 可以调用 Agent | ✅ 可以调用 Agent |
+| **对应 frontmatter** | `user-invocable: true` | `disable-model-invocation: false` |
 | **典型场景** | 部署上线、代码审查、会话控制 | 编码规范、架构建议、安全规则 |
 
 **选择依据**：不是看功能"复杂不复杂"，而是看**"谁来决定什么时候执行"**。
 
-**什么时候用 Command？**
+### 8.4.3 什么时候用手动调用（Command 方式）？
 
 1. 你需要**明确控制执行时机**（例如提交代码、项目部署、代码审查）
 2. 这个操作会产生某些后果，你希望**在自己确认之后才发生**
 3. 这是一个你会在**特定时机反复执行**的工作流程，你希望在自己认为合适的那一刻手动启动
 
-**什么时候用 Skill？**
+### 8.4.4 什么时候让 Claude 自动调用？
 
 1. Claude 应该在**不需要你明确指示**的情况下，主动识别当前场景并应用相关知识（如编码规范、安全规范）
 2. 相关的上下文（规则、知识、工具）应当在你没有主动要求的情况下，**由系统自动识别并加载**
 3. 你希望 Claude 能**自己识别出当前场景需要什么能力**，并在不需要你明确指示的情况下主动调用
 
-### 8.3.2 Command 和 Skill 的共同点
-
-1. **都可以通过** `/` 前缀触发：用户输入 `/xxx` 既可以触发内置命令，也可以触发 Skill
-2. **都可以调用 Agent**：Command 和 Skill 都可以指示 Claude 启动一个 Subagent 来执行具体任务
-3. **都是"触发器"角色**：它们不负责具体执行，而是决定"什么时候做什么事"
-4. **都可以带参数**：输入 `/命令名 参数` 将参数传递给 Command 或 Skill
-
 ---
 
-## 8.4 Command 与 Subagent（Agent）的关系
+## 8.5 Command 与 Subagent（Agent）的关系
 
-### 8.4.1 角色分工
+### 8.5.1 角色分工
 
-| 角色 | Command | Agent（Subagent） |
+| 角色 | Command / Skill（触发器） | Agent（Subagent） |
 | --- | --- | --- |
 | **本质** | **触发器**（Trigger） | **执行者**（Executor） |
 | **职责** | 决定"什么时候做什么事" | 在隔离环境中执行具体任务 |
 | **上下文** | 在主会话上下文中运行 | 拥有**独立的全新上下文窗口** |
-| **触发者** | 用户 | Claude（主代理）通过 `Agent` tool 触发 |
+| **触发者** | 用户（手动）/ Claude（自动） | Claude（主代理）通过 `Agent` tool 触发 |
 | **复杂度** | 可简单可复杂 | 可简单可复杂 |
-| **相互关系** | Command 可以指示 Claude 启动 Agent | Agent 不关心被谁触发 |
+| **相互关系** | Skill 可以指示 Claude 启动 Agent | Agent 不关心被谁触发 |
 
-### 8.4.2 Command + Agent 的协同工作流程
+### 8.5.2 Skill + Agent 的协同工作流程
 
 ```
-1. 你输入 /codehygiene（Command - 手动触发）
-2. Command 告知 Claude："调用 code-hygiene-checker agent"
+1. 你输入 /codehygiene（Skill 手动调用）
+2. Skill 告知 Claude："调用 code-hygiene-checker agent"
 3. Agent 加载自己的上下文和工具
 4. Agent 使用 Grep、Read、Bash 等工具检查你的代码
 5. Agent 返回结构化的检查结果
@@ -3390,29 +3461,29 @@ Agent   = 执行者（真正干活的）
 - **专业化**：Agent 可以配置专用的工具集和角色定义
 - **并行工作**：多个 Agent 可以同时运行
 
-### 8.4.3 什么时候用 Command 直接做，什么时候用 Command + Agent？
+### 8.5.3 什么时候用 Skill 直接做，什么时候用 Skill + Agent？
 
 | 场景 | 建议 | 原因 |
 | --- | --- | --- |
-| 插入代码片段 | 仅 Command | 简单操作，不需要隔离上下文 |
-| 格式化提示词模板 | 仅 Command | 简单操作，不需要隔离上下文 |
-| 运行一个快速的 bash 命令 | 仅 Command | 简单操作，不需要隔离上下文 |
-| 提交 PR 前的代码审查 | Command + Agent | 需要大量搜索分析，保护主上下文 |
-| 项目部署前逐项确认 | Command + Agent | 多步骤复杂任务，需要隔离执行 |
-| 安全审计 | Command + Agent | 高风险操作，Agent 隔离执行更安全 |
+| 插入代码片段 | 仅 Skill（手动调用） | 简单操作，不需要隔离上下文 |
+| 格式化提示词模板 | 仅 Skill（手动调用） | 简单操作，不需要隔离上下文 |
+| 运行一个快速的 bash 命令 | 仅 Skill（手动调用） | 简单操作，不需要隔离上下文 |
+| 提交 PR 前的代码审查 | Skill + Agent | 需要大量搜索分析，保护主上下文 |
+| 项目部署前逐项确认 | Skill + Agent | 多步骤复杂任务，需要隔离执行 |
+| 安全审计 | Skill + Agent | 高风险操作，Agent 隔离执行更安全 |
 
 ---
 
-## 8.5 决策框架：该用 Command、Skill 还是 Agent？
+## 8.6 决策框架：该用手动调用、自动调用还是 Agent？
 
 大多数开发者基于错误的问题做选择，他们问的是："这是初学者用的，还是高级功能？"
 
 真正该问的问题是：
 
-> **谁来决定这个操作何时执行？**（Command vs Skill）
+> **谁来决定这个操作何时执行？**（手动 vs 自动）
 > **需要完成什么具体工作？**（Agent）
 
-### 8.5.1 使用 Command + Agent 的场景
+### 8.6.1 使用手动调用 + Agent 的场景
 
 当你希望对多步骤工作流保有**手动控制权**时：
 
@@ -3423,7 +3494,7 @@ Agent   = 执行者（真正干活的）
 
 **你输入命令，Agent 执行具体工作。**
 
-### 8.5.2 使用 Skill + Agent 的场景
+### 8.6.2 使用自动调用 + Agent 的场景
 
 当你希望 Claude **主动应用领域专业知识**时：
 
@@ -3434,7 +3505,7 @@ Agent   = 执行者（真正干活的）
 
 **Claude 识别上下文，Skill 自动加载，Agent 执行工作。**
 
-### 8.5.3 仅使用 Command 的场景
+### 8.6.3 仅使用手动调用的场景
 
 当任务**简单且不需要隔离上下文**时：
 
@@ -3442,9 +3513,9 @@ Agent   = 执行者（真正干活的）
 - 格式化提示词模板
 - 运行一个快速的 bash 命令
 
-**无需 Agent，Command 本身就是完整的工作流。**
+**无需 Agent，Skill 本身就是完整的工作流。**
 
-### 8.5.4 仅使用 Skill 的场景
+### 8.6.4 仅使用自动调用的场景
 
 当你提供的是**供参考的背景信息**，而不是用来触发某个具体操作的指令时：
 
@@ -3456,13 +3527,13 @@ Agent   = 执行者（真正干活的）
 
 ---
 
-## 8.6 实际案例：Command + Agent 协同工作
+## 8.7 实际案例：Skill + Agent 协同工作
 
-一个代码健康度检查系统，展示 Command + Agent 如何协同工作：
+一个代码健康度检查系统，展示 Skill（手动调用） + Agent 如何协同工作：
 
-**文件 1：Command（手动触发器）**
+**文件 1：Skill（手动调用入口）**
 
-保存为 `.claude/commands/codehygiene.md`：
+保存为 `.claude/skills/codehygiene/SKILL.md`：
 
 ```markdown
 ---
@@ -3495,25 +3566,26 @@ After the agent returns its review results, analyze the findings and provide spe
 
 ```
 用户在 Claude Code 中输入 /codehygiene
-    → Command 运行
+    → Skill 运行
     → 指示 Claude 调用 code-hygiene-checker agent
     → Agent 在独立上下文中扫描代码变更
     → 返回结构化报告（blocking issues / technical debt risks / suggestions）
 ```
 
-**关键点**：Command 让你掌控执行的主动权，Agent 负责实际的检查工作。两个文件，一套工作流。
+**关键点**：Skill 让你掌控执行的主动权，Agent 负责实际的检查工作。两个文件，一套工作流。
 
 ---
 
-## 8.7 常见误解澄清
+## 8.8 常见误解澄清
 
 | 误解 | 正解 |
 | --- | --- |
-| Command 是入门，Skill 是进阶，Agent 是高级 | ❌ 它们是不同角色，不是等级体系。Command=手动触发器，Skill=自动触发器，Agent=执行者 |
-| Command 比 Skill 低级 | ❌ Command 和 Skill 只是触发方式不同，没有高低之分 |
-| Agent 只能被 Command 触发 | ❌ Agent 可以被 Command 触发，也可以被 Skill 触发，也可以被 Claude 直接触发 |
-| 复杂任务一定要用 Agent | ❌ 简单任务仅用 Command 或 Skill 即可，Agent 主要用于需要隔离上下文的场景 |
-| 用了 Command 就不能用 Agent | ❌ Command + Agent 是常见的最佳实践组合 |
+| Command 是入门，Skill 是进阶，Agent 是高级 | ❌ 它们是不同角色，不是等级体系。Command=手动调用，Skill=统一能力，Agent=执行者 |
+| Command 比 Skill 低级 | ❌ 合并后所有能力都是 Skill，手动调用只是 Skill 的一种触发方式 |
+| Agent 只能被手动调用触发 | ❌ Agent 可以被手动调用触发，也可以被自动调用触发，也可以被 Claude 直接触发 |
+| 复杂任务一定要用 Agent | ❌ 简单任务仅用 Skill 即可，Agent 主要用于需要隔离上下文的场景 |
+| 用了手动调用就不能用 Agent | ❌ Skill + Agent 是常见的最佳实践组合 |
+| Slash Commands 被废弃了 | ❌ 只是合并到 Skill 体系中，所有现有功能继续正常工作 |
 
 # 9. Subagent介绍
 
