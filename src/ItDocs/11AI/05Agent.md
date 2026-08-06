@@ -3245,7 +3245,7 @@ Skill提供了冷门CLI工具的"说明书"，大模型在加载Skill后就知�
 | 场景 | 原因 |
 | --- | --- |
 | 本地文件操作 | 直接通过bash命令操作，无需中间层 |
-| 批处理/管道任务 | 利用 `\\\\\\\|`和`&&` 组合多个工具，一步完成 |
+| 批处理/管道任务 | 利用 `\\\\\\\\|`和`&&` 组合多个工具，一步完成 |
 | Token敏感场景 | 不需要加载大量工具定义，成本极低 |
 | 常见命令操作 | git、grep、curl等模型已内化的命令 |
 | 个人/轻量使用 | 灵活高效，适合个人开发场景 |
@@ -4339,16 +4339,581 @@ Claude 读/写文件 → 检查文件路径
 - 如果是**具体的编码规范、按模块/目录区分的指令** → Rules
 - 如果是**特定任务的流程指导**（部署、审查、调试） → Skill
 
-# 11. Hooks介绍
+# 11. Hooks（钩子）介绍
 
+## 11.1 什么是 Hooks？
 
-Hooks如何触发，如何保证一定会触发的
+**Hooks（钩子）** 是 Claude Code 的"自动化传感器"——在特定事件发生时**自动执行**你的脚本，实现可靠的自动化。与 CLAUDE.md 中的建议性指令不同，Hooks 是**确定性的**，保证操作一定发生。
 
-hooks中需要调用大模型吗？
+### 一句话理解
 
-什么情况应该用hooks
+- **CLAUDE.md 规则**：建议性的（AI 可能忽略），类比"团队规范文档"
+- **Hooks**：事件驱动的确定性执行，类比"自动化传感器"
 
-如何自定义hooks
+### 为什么需要 Hooks？
+
+**没有 Hooks 之前**（靠 AI "记住"）：
+
+```
+你：每次写代码后帮我运行格式化
+Claude：好的！（这次记住了）
+...10分钟后...
+Claude：代码写好了！
+你：等等，你忘了格式化！
+Claude：抱歉，我忘了...
+```
+
+**有了 Hooks 之后**（100% 自动执行）：
+
+```
+配置 PostToolUse Hook → 监听 Write 工具 → 自动运行格式化脚本
+Claude：代码写好了！
+[Hook 自动触发：运行 prettier --write xxx.js]
+结果：代码已自动格式化，100% 不会忘记
+```
+
+### Hooks vs CLAUDE.md 对比
+
+| 对比维度 | CLAUDE.md 规则 | Hooks |
+| --- | --- | --- |
+| **驱动模型** | 建议性（AI 可能忽略） | 事件驱动，确定性执行 |
+| **类比** | 团队规范文档 | 自动化传感器 |
+| **执行保证** | 不保证 | 退出码 0 = 继续，退出码 2 = 阻止（限可阻止事件） |
+| **适用场景** | 代码风格、架构决策 | 格式化、保护文件、通知、验证 |
+| **经验法则** | "Claude 应该做" | "必须发生" |
+
+---
+
+## 11.2 Hook 的核心机制
+
+### 11.2.1 Hook 的退出码
+
+| 退出码 | 行为 |
+| --- | --- |
+| **0** | 操作继续。stdout 可注入上下文（仅 exit 0 时解析 JSON 输出） |
+| **2** | 阻止操作（仅限可阻止事件：PreToolUse、UserPromptSubmit、Stop 等）。stderr 作为反馈发送给 Claude。对于不可阻止事件（PostToolUse、Notification 等），exit 2 仅显示 stderr |
+| **其他** | 操作继续。stderr 记入日志 |
+
+### 11.2.2 Hook 的解析流程（以 PreToolUse 为例）
+
+```
+Claude 决定执行 Bash "rm -rf /tmp/build"
+    ↓
+系统检查 PreToolUse Hook 配置
+    ↓
+Matcher 匹配：Bash → 命中
+    ↓
+执行 Hook 脚本（stdin 传入工具输入 JSON）
+    ↓
+脚本检查命令是否危险
+    ↓
+脚本输出决策 JSON（stdout）或 exit 2
+    ↓
+系统解析决策：
+  - allow → 继续执行
+    - deny  → 阻止执行，将原因反馈给 Claude
+    - ask   → 暂停，询问用户决定
+```
+
+---
+
+### 11.2.3 如何保证 Hook “一定会” 触发？
+
+Hooks 的本质是 Claude Code 宿主进程的事件监听器（Event Listeners）。它的触发完全由系统底层生命周期驱动，而不是靠 AI 模型的意识或概率。
+
+在 Claude Code 中，**规则（Rules / Prompt）是对模型的“软约束”**（模型有理解偏差或忽略规则的可能性），而 **Hooks 是宿主环境中的“硬拦截”**（100% 确定性的代码执行）。
+
+系统保证其必触发的机制与工程注意事项如下：
+
+#### 1. 系统架构层面的确定性保证
+
+- **AOP 切面硬性拦截**：Hook 挂载在 CLI 宿主进程的底层框架上。只要 Claude 发起了工具调用的代码执行流程，宿主进程在真正发送请求前**必定会插入并执行** Hook 脚本。模型本身甚至无法绕过这个切面。
+- **同步阻塞控制**：以 `PreToolUse` 为例，系统会同步挂起当前流程，等待 Hook 脚本执行完成：
+  - **退出码** `0`：校验通过，继续执行工具操作。
+  - **退出码** `2`：阻断操作，抛出拦截错误给 Claude，工具**强制不被调用**。
+
+#### 2. 工程落地层面：确保 Hook 不会意外失效的 Checklist
+
+即使底层机制是 100% 保证触发的，配置不当会导致 Hook “看似没触发”。
+
+- 配置文件存放在有效位置
+- Matcher 正确性（严格区分大小写）
+- 确保脚本权限与环境路径
+- 保持脚本高性能，避免超时挂起
+
+## 11.3 完整事件类型
+
+### 11.3.1 三大高频入口（先掌握这三个）
+
+| 事件 | 触发时机 | 可否阻止 | 典型用途 |
+| --- | --- | --- | --- |
+| **UserPromptSubmit** | 用户输入提交后，Claude 处理前 | ✅ 可阻止 | 提示词优化、自动追加规范 |
+| **PreToolUse** | 工具调用前，尚未执行 | ✅ 可阻止 | 权限校验、危险命令拦截、文件保护 |
+| **PostToolUse** | 工具调用成功后 | ❌ 不可阻止 | 自动格式化、备份、日志记录 |
+
+### 11.3.2 事件类型完整清单
+
+| 事件 | 位置 | 触发时机 | Matcher 过滤 | 典型用途 |
+| --- | --- | --- | --- | --- |
+| **UserPromptSubmit** | 会话级 | 提交提示词后 | 不支持 matcher | 预处理或验证输入 |
+| **PreToolUse** | 循环内 | 工具调用前（可阻止） | 工具名：Bash、Edit\|Write | 阻止危险操作、权限校验 |
+| **PostToolUse** | 循环内 | 工具调用成功后 | 工具名 | 自动格式化、运行 lint |
+| **PostToolUseFailure** | 循环内 | 工具调用失败后 | 工具名 | 错误日志、告警 |
+| **SessionStart** | 会话级 | 会话开始时 | 不支持 matcher | 环境初始化、依赖检查 |
+| **SessionEnd** | 会话级 | 会话终止时 | 不支持 matcher | 清理资源 |
+| **Stop** | 会话级 | Claude 完成响应（可阻止） | 不支持 matcher | 验证任务、强制继续 |
+| **StopFailure** | 会话级 | API 异常导致会话停止 | 不支持 matcher | 发送告警、记录错误 |
+| **Notification** | 异步 | 需要用户注意时 | 通知类型 | 桌面通知 |
+| **SubagentStart** | 循环内 | 子代理启动时 | Agent 类型名 | 建立连接、准备环境 |
+| **SubagentStop** | 循环内 | 子代理完成时 | Agent 类型名 | 清理连接、收集结果 |
+| **TaskCreated** | 循环内 | 子任务创建时 | 不支持 matcher | 子代理日志 |
+| **TaskCompleted** | 循环内 | 任务标记完成时 | 不支持 matcher | 验证完成度 |
+| **PreCompact** | 会话级 | 上下文压缩前 | 不支持 matcher | 保存关键上下文 |
+| **PostCompact** | 会话级 | 上下文压缩后 | 不支持 matcher | 记录 token 变化 |
+| **ConfigChange** | 异步 | 配置文件变更时 | 配置来源 | 热重载 |
+| **PermissionRequest** | 循环内 | 权限对话框出现时 | 工具名 | 自动批准/拒绝 |
+| **TeammateIdle** | 会话级 | Agent Team 成员空闲时 | 不支持 matcher | 分配新任务 |
+| **WorktreeCreate** | Setup | 创建 worktree 时 | 不支持 matcher | 替换默认 git 行为 |
+| **WorktreeRemove** | Teardown | 移除 worktree 时 | 不支持 matcher | 清理 worktree |
+| **Elicitation** | 循环内 | MCP 请求交互输入时 | 不支持 matcher | 记录交互日志 |
+| **ElicitationResult** | 循环内 | 用户完成输入后 | 不支持 matcher | 验证输入合法性 |
+| **CwdChanged** | 异步 | 工作目录切换时 | 不支持 matcher | 同步环境 |
+| **FileChanged** | 异步 | 文件变化时 | 不支持 matcher | 触发检查 |
+
+> **记忆方式**：先记三大高频入口 **UserPromptSubmit**、**PreToolUse**、**PostToolUse**，再按"失败/任务/文件/压缩/交互"五个补充事件族扩展。
+
+---
+
+## 11.4 配置方式
+
+### 11.4.1 Shell 命令 Hook
+
+在 `.claude/settings.json` 中配置：
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/hooks/post-auto-format.py",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+| 配置字段 | 说明 |
+| --- | --- |
+| `PostToolUse` | Hook 事件类型 |
+| `matcher` | 工具匹配规则（支持 `\\|` 正则，如 `Write\\|Edit`、`Bash`） |
+| `type` | 固定为 `command` |
+| `command` | 要执行的脚本命令 |
+| `timeout` | 超时时间（秒），默认 60s |
+
+### 11.4.2 HTTP Hook（远程 Webhook）
+
+v2.1+ 新增，可以直接将 Hook 事件 POST 到远程 URL：
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "type": "http",
+        "url": "https://your-webhook.example.com/hook",
+        "timeout": 5000
+      }
+    ]
+  }
+}
+```
+
+| 配置字段 | 说明 |
+| --- | --- |
+| `type` | 固定为 `http` |
+| `url` | 远程 Webhook 地址（POST JSON 请求） |
+| `timeout` | 超时时间（毫秒） |
+
+**适用场景**：Slack/Discord 通知、CI/CD 触发、日志收集服务。
+
+### 11.4.3 Prompt 类型 Hook
+
+通过 LLM 验证任务，无需编写脚本：
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "检查所有任务是否已完成。如果没有，返回 {\"ok\": false, \"reason\": \"剩余工作描述\"}。"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 配置文件存储位置
+
+| 位置 | 路径 | 说明 |
+| --- | --- | --- |
+| **项目级** | `.claude/settings.json` | 当前项目，Git 跟踪，团队共享 |
+| **个人级** | `.claude/settings.local.json` | 当前项目，不提交 Git |
+| **全局** | `~/.claude.json` | 所有项目 |
+
+---
+
+## 11.5 实战示例
+
+### 示例 1：自动代码格式化
+
+在每次文件编辑后自动运行 Prettier 格式化：
+
+**脚本** `.claude/hooks/post-auto-format.py`：
+
+```python
+#!/usr/bin/env python3
+"""PostToolUse Hook - 保存代码文件后自动格式化"""
+import sys, json, subprocess
+from pathlib import Path
+
+FORMATTERS = {
+    '.js': 'npx prettier --write', '.ts': 'npx prettier --write',
+    '.jsx': 'npx prettier --write', '.tsx': 'npx prettier --write',
+    '.py': 'black', '.go': 'gofmt -w',
+}
+EXCLUDED = {'node_modules', 'venv', '__pycache__', 'dist', '.git'}
+
+try:
+    input_data = json.loads(sys.stdin.read())
+except:
+    sys.exit(0)
+
+tool_name = input_data.get('tool_name', '')
+file_path = input_data.get('tool_input', {}).get('file_path', '')
+
+if tool_name not in ['Write', 'Edit'] or not file_path:
+    sys.exit(0)
+
+path = Path(file_path)
+for part in path.parts:
+    if part in EXCLUDED:
+        sys.exit(0)
+
+fmt = FORMATTERS.get(path.suffix)
+if fmt:
+    subprocess.run(f'{fmt} "{file_path}"', shell=True, timeout=30)
+```
+
+**配置**：
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "python .claude/hooks/post-auto-format.py", "timeout": 30 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 示例 2：文件保护（PreToolUse）
+
+禁止修改 production/ 目录下的文件：
+
+**脚本** `.claude/hooks/pre-protect-production.py`：
+
+```python
+#!/usr/bin/env python3
+"""PreToolUse Hook - 禁止修改 production 目录"""
+import sys, json
+
+try:
+    input_data = json.loads(sys.stdin.read())
+except:
+    sys.exit(0)
+
+tool_name = input_data.get('tool_name', '')
+file_path = input_data.get('tool_input', {}).get('file_path', '')
+
+if tool_name not in ['Write', 'Edit']:
+    sys.exit(0)
+
+protected = ['production/', 'prod/', '.env']
+for p in protected:
+    if p in file_path.replace('\\', '/'):
+        print(json.dumps({"decision": "deny", "message": f"禁止修改受保护路径: {file_path}"}))
+        sys.exit(0)
+
+sys.exit(0)
+```
+
+### 示例 3：危险命令拦截
+
+**脚本** `.claude/hooks/pre-block-dangerous.py`：
+
+```python
+#!/usr/bin/env python3
+"""PreToolUse Hook - 拦截危险 Bash 命令"""
+import sys, json, re
+
+DANGEROUS = [
+    r'rm\s+-rf\s+/', r'rm\s+-rf\s+~', r'rm\s+-rf\s+\*',
+    r':\(\)\s*{\s*:\|:&\s*};:', r'mkfs\.', r'dd\s+if=.+of=/dev/',
+]
+
+try:
+    input_data = json.loads(sys.stdin.read())
+except:
+    sys.exit(0)
+
+if input_data.get('tool_name') != 'Bash':
+    sys.exit(0)
+
+command = input_data.get('tool_input', {}).get('command', '')
+for pattern in DANGEROUS:
+    if re.search(pattern, command, re.IGNORECASE):
+        print(json.dumps({"decision": "deny", "message": f"危险命令已拦截: {command}"}))
+        sys.exit(0)
+```
+
+### 示例 4：提示词自动增强（UserPromptSubmit）
+
+检测到写作任务时自动追加规范：
+
+**脚本** `.claude/hooks/user-prompt-enhance.py`：
+
+```python
+#!/usr/bin/env python3
+"""UserPromptSubmit Hook - 写作任务自动追加规范"""
+import sys, json
+
+try:
+    input_data = json.loads(sys.stdin.read())
+except:
+    sys.exit(0)
+
+user_input = input_data.get('prompt', '').strip()
+if not user_input or len(user_input) < 5 or user_input.startswith('/'):
+    sys.exit(0)
+
+writing_keywords = ['写', '文章', '生成', '创作', 'write', 'article']
+if any(kw in user_input.lower() for kw in writing_keywords):
+    enhancement = """
+---
+## 写作规范提醒（Hook 自动注入）
+1. **风格**：接地气、说人话，避免 AI 腔
+2. **结构**：开头金句 → 核心要点 → 实战案例 → 总结升华
+3. **字数**：1500-2000 字
+---"""
+    print(enhancement)
+```
+
+### 示例 5：环境初始化（SessionStart）
+
+启动时检查必需工具是否安装：
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python .claude/hooks/session-start-check.py", "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 示例 6：桌面通知（Notification）
+
+```json
+{
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "osascript -e 'display notification \"Claude Code 需要你的注意\" with title \"Claude Code\"'"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 示例 7：Stop Hook 验证任务完成
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "检查所有任务是否已完成。如果没有，返回 {\"ok\": false, \"reason\": \"剩余工作描述\"}。"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 11.6 安全警告
+
+**Hooks 可以执行任意 Shell 命令**，配置不当可能导致文件被删除、敏感信息泄露或系统被攻击。
+
+| 风险 | 防护措施 |
+| --- | --- |
+| 恶意脚本 | 只运行你信任的脚本，不要从不明来源复制配置 |
+| 权限过大 | 脚本只请求必要的权限，避免使用 sudo |
+| 敏感信息 | 不要在脚本中硬编码密码/Token |
+| 无限循环 | 设置合理的 timeout，避免脚本卡死 |
+| HTTP Hook | 确保目标 URL 可信且使用 HTTPS，避免发送敏感信息 |
+
+**配置检查清单**：
+
+- 脚本来源可信吗？（自己写的/官方示例/信任的开源）
+- 脚本权限最小化了吗？（不需要 sudo 就不用）
+- 敏感信息用环境变量了吗？（不硬编码）
+- 设置了合理的 timeout 吗？（防止卡死）
+- 团队成员都知道这个 Hook 吗？（透明度）
+
+---
+
+## 11.7 常见问题
+
+### Q1: Hook 和 Skill 有什么区别？
+
+| 维度 | Hook | Skill |
+| --- | --- | --- |
+| **执行方式** | **确定性执行**（匹配就运行） | **建议性执行**（Claude 决定是否遵循） |
+| **谁控制** | **你控制**是否执行 | **Claude 控制**是否执行 |
+| **逻辑类型** | Shell 命令 / HTTP / 固定逻辑 | 自然语言指令 |
+| **适合什么** | **必须做的事**（安全门禁、格式化） | **参考性流程**（审查步骤、调试流程） |
+| **Claude 感知** | Claude 不直接"知道" hook 存在 | Claude 读取并理解 skill 内容 |
+| **举例** | "每次写 Python 文件后自动 ruff 格式化" | "当用户问 Docker 问题时按以下步骤排查" |
+
+### Q2: Hook 可以用什么语言写？
+
+任何可执行程序都可以：
+
+- **Python**（推荐，跨平台）
+- **Bash/Shell**（macOS/Linux）
+- **Batch**（Windows）
+- **Node.js**、**Go**、**Rust** 等
+
+### Q3: Matcher 支持正则表达式吗？
+
+支持：
+
+- `"Write"` — 精确匹配
+- `"Write|Edit"` — 匹配 Write 或 Edit
+- `".*"` — 匹配所有工具（慎用）
+
+### Q4: 如何让 Hook 只对特定目录的文件生效？
+
+在脚本中检查文件路径：
+
+```python
+if '/articles/' not in file_path:
+    sys.exit(0)  # 不在目标目录，跳过
+```
+
+### Q5: 一个事件可以配置多个 Hook 吗？
+
+可以，多个 Hook 会按顺序执行：
+
+```json
+{
+  "matcher": "Write",
+  "hooks": [
+    { "type": "command", "command": "python hook1.py" },
+    { "type": "command", "command": "python hook2.py" }
+  ]
+}
+```
+
+### Q6: Hook 有性能影响吗？
+
+有一定影响：每次工具调用都会触发 Hook，复杂脚本会增加延迟。建议优化脚本性能，设置合理 timeout。
+
+### Q7: 如何在团队中共享 Hook 配置？
+
+将 `.claude/` 目录加入 Git 版本控制：
+
+```bash
+git add .claude/settings.json
+git add .claude/hooks/
+git commit -m "Add Claude Code hooks"
+```
+
+### Q8: Hook 可以调用大模型吗？
+
+可以，但要注意：
+
+- 会消耗额外 Token
+- 可能导致无限循环
+- 建议设置调用限制
+
+### Q9: PreToolUse 的决策值有哪些？
+
+通过 stdout 输出 JSON：
+
+```json
+// 允许执行，绕过权限系统
+{"decision": "allow", "message": "允许执行"}
+
+// 拒绝执行，原因会反馈给 Claude
+{"decision": "deny", "message": "禁止修改受保护路径"}
+
+// 暂停，询问用户决定
+{"decision": "ask", "message": "是否继续执行？"}
+```
+
+无输出则默认允许。
+
+### Q10: 脚本报错会影响 Claude Code 吗？
+
+不会！Hook 脚本出错不会阻止 Claude Code 运行，只是该 Hook 功能失效。
+
+---
+
+## 11.8 总结
+
+| 维度 | 说明 |
+| --- | --- |
+| **是什么** | 在 Claude Code 生命周期特定点自动执行的用户定义处理器 |
+| **为什么需要** | 提供确定性的自动化——有些事必须每次发生，不能依赖 LLM 自己决定 |
+| **谁触发** | **系统自动触发**（在固定的生命周期点） |
+| **怎么触发** | 配置 `.claude/settings.json` 中的 hooks 字段 |
+| **什么时候触发** | 在预定义的生命周期事件点（UserPromptSubmit、PreToolUse、PostToolUse 等） |
+| **什么场景使用** | 自动格式化、文件保护、危险命令拦截、环境初始化、通知 |
+| **如何使用** | Shell 命令 / HTTP Webhook / LLM Prompt |
 
 # 12. OpenCode与Claude Code对应的概念？
 
