@@ -6,6 +6,22 @@
 
 # AGENTS.md
 
+AGENTS.md 是一个简单的开放格式，用于指导 AI Coding Agent 在你的项目中工作。你可以把它理解为给 AI 看的 README——README.md 是给人类看的项目说明，AGENTS.md 则是给 AI Agent 看的项目指令，包含构建命令、编码规范、测试要求、安全注意事项等 AI 需要知道的上下文。
+
+写进 AGENTS.md 的内容
+只有两类内容应该直接写在 AGENTS.md 中：
+1. AI 理解项目全貌的必要信息——技术栈、仓库结构、核心模块、分层架构
+2. 违反会直接导致问题的硬性规则——编码规约、命名约定、禁止项
+不写进去的内容
+其他详细信息通过文档链接和引用指向对应的文档：
+AGENTS.md（地图）
+  → docs/architecture.md          分层架构详细说明
+  → docs/development.md           开发环境搭建
+  → docs/design-docs/ref-.md     参考项目架构说明
+  → docs/design-docs/-patterns.md 组件使用模式
+
+判断一条信息该放 AGENTS.md 还是放详细文档，有一个简单的标准：如果 AI 不知道这条信息就会写出错误的代码，放 AGENTS.md；如果只是写出不够好的代码，放详细文档，AGENTS.md 里放链接。
+
 # 哪些应该作为skill
 
 
