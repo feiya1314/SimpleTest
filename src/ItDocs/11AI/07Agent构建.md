@@ -4,6 +4,9 @@
 # 2. SSE和websocket区别
 
 
+
+![](assets/image-20260808-184215-003.png)
+
 # 3. Skill管理
 
 第一层：常驻的只有「书脊」
@@ -154,6 +157,13 @@ skill 放在项目的 .claude/skills/ 目录里，意味着它会跟着代码一
 
 模型现想是有失败率的，今天想对了明天可能想歪。脚本没有失败率，跑一万次一个样。所以能固化成脚本的就别让模型现想，这是写 skill 最重要的手感。
 
+# 4. 上下文管理
+
+<https://lintsinghua.github.io/#ch07>
+
+# 5. 记忆管理
+
+<https://lintsinghua.github.io/#ch06>
 
 # RAG
 
