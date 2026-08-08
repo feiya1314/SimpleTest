@@ -1,10 +1,15 @@
 # AI的边界
 
+<https://zhuanlan.zhihu.com/p/2013946592718242951?share_code=1n7zz6NkdMP78&utm_psn=2029522371908842803>
+
 
 # 1. 高效利用token，减少token消耗
 
+<https://www.zhihu.com/question/2000215728800945377/answer/2024571481397437306?share_code=DDT6FSNPw7QW&utm_psn=2036905670256145403>
 
 # 2. AGENTS.md使用
+
+<https://zhuanlan.zhihu.com/p/2019125676146443849>
 
 AGENTS.md 是给 AI Coding Agent 看的**项目指令文件**，相当于给 AI 的 README——README.md 是给人看的项目说明，AGENTS.md 是给 AI Agent 看的项目上下文指令，包含构建命令、编码规范、测试要求、安全注意事项等 AI 需要知道的信息。它与 CLAUDE.md **等价**，内容格式完全通用，一个软链接即可兼容。
 
@@ -271,6 +276,8 @@ lint、format、build、test 命令矩阵。
 
 
 # 开源skill工具使用
+
+<https://zhuanlan.zhihu.com/p/2040891807819642311?share_code=1cyfPaSb3Oxr2&utm_psn=2041271931295504340>
 
 openspec
 
