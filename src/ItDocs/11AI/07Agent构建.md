@@ -164,9 +164,16 @@ skill 放在项目的 .claude/skills/ 目录里，意味着它会跟着代码一
 
 <https://www.xuanyuancode.com/learn-claude-code/tutorials/cc18>
 
+
+<https://mp.weixin.qq.com/s/imwXP56r-llaQwD-qAQM6Q>
+
 # 5. 记忆管理
 
 <https://lintsinghua.github.io/#ch06>
 
 # RAG
+
+<https://mp.weixin.qq.com/s/CCx-MVJNBKfnc2BQNOSprQ>
+
+<https://github.com/bojieli/ai-agent-book>
 
