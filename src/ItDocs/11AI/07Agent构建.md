@@ -177,3 +177,5 @@ skill 放在项目的 .claude/skills/ 目录里，意味着它会跟着代码一
 
 <https://github.com/bojieli/ai-agent-book>
 
+<https://mp.weixin.qq.com/s?__biz=MzUxODAzNDg4NQ==&mid=2247557512&idx=1&sn=20e66b0bfde1564616291458f9f07a5e&chksm=f98ca522cefb2c3444573aec65a8ee4932ad84a6b5d4d480e3abd8d7e86343e80602f72c16c9&scene=178&cur_album_id=4404340926102421504&search_click_id=#rd>
+
