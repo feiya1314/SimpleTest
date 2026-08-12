@@ -11,6 +11,9 @@
 [https://mp.weixin.qq.com/s/2kWi0Fld09fNMVIUg9ddKQ  AI 不缺智商缺纪律：我的 Harness 工程化实践](https://mp.weixin.qq.com/s/2kWi0Fld09fNMVIUg9ddKQ)
 
 
+<https://waytoagi.feishu.cn/wiki/DlzewW5i0iApAVkXg5tcco1PngU>
+
+
 那人类工程师到底在干啥？从他们这套实践里，你能看到工程师的工作重心其实都压在了三件事上面：
 
 把产品目标拆解成 Agent 能力边界内的小任务，确保每一件事都是 Agent 接得住的
