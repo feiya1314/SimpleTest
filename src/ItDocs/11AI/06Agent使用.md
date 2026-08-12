@@ -341,6 +341,7 @@ lint、format、build、test 命令矩阵。
 
 spec 怎么管理，spec腐化
 
+<https://zhuanlan.zhihu.com/p/2033476732142007734>
 
 <https://www.zhihu.com/question/1969140298404853132/answer/2061406267135071284?share_code=PNhWbMWlVJmW&utm_psn=2064140575847326139>
 
