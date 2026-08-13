@@ -39,6 +39,29 @@ OpenAI Codex 团队那几个工程师能撬动百万行代码，靠的就不是�
 
 <https://www.zhihu.com/question/2000215728800945377/answer/2024571481397437306?share_code=DDT6FSNPw7QW&utm_psn=2036905670256145403>
 
+
+<https://baoyu.io/blog/2026-04-13/ai-first>
+
+# 工作流
+
+1、grill 讨论
+
+2、生成spec文档，注意生成的spec文档，文档名和内容主题中携带 需求类型 feature还是bugfix，需求编号、问题单号
+
+/to-spec
+
+3、拆解任务 spec 拆成小的可执行的任务
+
+4、参照实现，提交改动时，带上需求编号
+
+```
+测试验证，不通过继续实现
+```
+
+5、code review，根据需求的编号或者问题单号，进行代码review
+
+两方面 1、需求实现问题
+
 # 2. AGENTS.md使用
 
 <https://zhuanlan.zhihu.com/p/2019125676146443849>
@@ -326,6 +349,37 @@ lint、format、build、test 命令矩阵。
 ```
 
 建议控制在 **200 行以下**。超过这个范围，考虑将细节拆分到 docs/ 下的专题文档。
+
+
+# Rules
+
+# Subagent使用
+
+
+# Skills
+
+
+# hook
+
+
+# MCP
+
+
+# 测试和约束
+
+单测
+
+
+本地api测试
+
+
+集成测试
+
+# spec维护，如何避免spec腐烂问题
+
+Spec 的定位：一次性沟通工具，不是长期文档，
+
+Spec 不是 Wiki、设计文档或 README。它是"在开始写代码前，确保你和 AI 理解一致"的中间产物。代码写完，Spec 的历史使命就完成了。
 
 # 哪些应该作为skill
 
