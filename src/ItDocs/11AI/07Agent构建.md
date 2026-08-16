@@ -1,6 +1,10 @@
 # 1. 流式输出的原理
 
 
+<https://zhuanlan.zhihu.com/p/2060498965146210764>
+
+<https://github.com/humanlayer/12-factor-agents>
+
 # 2. SSE和websocket区别
 
 
