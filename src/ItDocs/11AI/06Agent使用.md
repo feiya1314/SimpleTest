@@ -182,9 +182,22 @@ subagent在自己独立的上下文窗口里跑，做完只传答案回来，过
 
 codeview
 
-### 4、hooks
+
+### 4、skills
+
+codeview
+
+api测试用例生成
+
+grill
+
+to spec
+
+
+### 5、hooks
 
 PostToolUse Hooks，在java代码修改后，自动格式化和执行代码风格检查
+
 
 ## 工作流：
 
@@ -420,13 +433,13 @@ curl -s -X POST http://localhost:8080/providers/list \
 
 **验证不止于编译通过**。
 
-<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">验证手段主要是两类：</span>
+验证手段主要是两类：
 
-**<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">后端：bash / curl 验证接口</span>**<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">。这是最基础也最可靠的验证方式——启动服务，curl 调接口，解析响应，确认数据正确。上面的 curl 验证规范就是为此设计的。</span>
+后端：bash / curl 验证接口。这是最基础也最可靠的验证方式——启动服务，curl 调接口，解析响应，确认数据正确。上面的 curl 验证规范就是为此设计的。
 
-**<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">前端：Agent Browser 验证页面</span>**<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">。纯 curl 只能验证接口返回值，但前端页面的渲染、交互、布局问题是看不到的。在调试前端疑难杂症时，我会使用 AI 工具的 Agent Browser 能力（如 Qoder 的 </span>`agent-browser`<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">），让 Agent 自己打开浏览器、操作页面、截屏对比，获取完整的视觉上下文来定位问题。这比让 Agent 猜测 CSS 问题要高效得多。</span>
+前端：Agent Browser 验证页面。纯 curl 只能验证接口返回值，但前端页面的渲染、交互、布局问题是看不到的。在调试前端疑难杂症时，我会使用 AI 工具的 Agent Browser 能力（如 Qoder 的 agent-browser），让 Agent 自己打开浏览器、操作页面、截屏对比，获取完整的视觉上下文来定位问题。这比让 Agent 猜测 CSS 问题要高效得多。
 
-<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; max-width: 100%; box-sizing: border-box !important; overflow-wrap: break-word !important; font-size: 15px; color: rgb(62, 62, 62);">在我的实践中，验证闭环不仅仅是「代码能编译」，而是「功能能跑通」：</span>
+在我的实践中，验证闭环不仅仅是「代码能编译」，而是「功能能跑通」：
 
 验证闭环不仅仅是"代码能编译"，而是"功能能跑通"：
 
