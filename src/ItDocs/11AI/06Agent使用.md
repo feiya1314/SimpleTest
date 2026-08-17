@@ -265,6 +265,18 @@ Step 8：给出修复建议
 4. 给出修复方案
 5. 先写回归测试，再实现修复代码。
 
+
+### 7、代码仓优化
+
+improve-codebase-architecture
+
+Agent 写代码快，但也容易把项目变成一团泥。写得越快，架构腐烂得越快。这个 skill 就是给腐烂踩刹车的：定期扫描代码库，找出重构机会，生成一份单文件的 HTML 报告，有卡片、before/after 对比图和推荐强度标注。分析优先看最近修改过的热点区域，不做全量扫描。
+
+最核心的概念是深模块（deep module）。一个好的模块应该是"深"的，接口很小但能解锁大量行为。反过来，一个"浅"模块的接口几乎和实现一样复杂，用它并不能帮你简化什么。这个概念来自 John Ousterhout 的《软件设计的哲学》（A Philosophy of Software Design），Matt 把它直接编码进了 Agent 的判断标准。
+
+怎么判断一个模块够不够深？Matt 用一个叫删除测试（Deletion Test）的方法：假设把这个模块删掉，逻辑摊回调用方，整体复杂度会不会暴涨？会，说明它真的封装了复杂度；几乎不变，说明复杂度本来就没被吸收，它是浅的。发现候选重构点之后，它不会直接生成 PR，会先调用 /grilling 拉着你深入讨论一轮。
+
+
 # 2. AGENTS.md使用
 
 <https://zhuanlan.zhihu.com/p/2019125676146443849>
@@ -691,6 +703,8 @@ openspec
 
 superpowers
 
+<https://cloud.tencent.com/developer/article/2654984>
+
 ECC
 
 <https://zhuanlan.zhihu.com/p/2001706484703195335>
@@ -698,6 +712,19 @@ ECC
 <https://github.com/aaione/everything-claude-code-zh>
 
 <https://cloud.tencent.com/developer/article/2653487>
+
+
+## superpowers
+
+token花费大
+
+流程比较重
+
+每次启动一开始就去扫描整个目录树，上下文消耗多
+
+从0到1MVP阶段不错，修bug，新增feature，还是plan最直接
+
+让它设计、计划还凑合，但真正让它通过 sub agent 执行计划的时候，经常左右脑互搏，浪费一大推 token 就给你生成了一个只有空方法的单测
 
 
 grill并没有详细方案。只是定了一个方向和一些规则。真的详细方案是to-prd产出。to-issues是对prd做切片。
