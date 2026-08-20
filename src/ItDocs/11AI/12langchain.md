@@ -12,7 +12,7 @@
 
 **选型时应该考虑什么？**
 
-1. **判断任务是否真的需要 Agent**。如果步骤固定、规则明确，普通函数或工作流通常更便宜、更稳定。
+1. **判断任务是否真的需要 Agent**。如果步骤固定、规则明有分类和目标识别模型训练经验，大模型应用开发经验确，普通函数或工作流通常更便宜、更稳定。
 2. **找到项目真正困难的那一层**。模型和工具接入最费力，LangChain 更自然；难点集中在私有数据、文档解析和检索质量，LlamaIndex 更贴近问题；业务路径包含复杂分支、循环和状态恢复，才轮到 LangGraph 发挥优势。
 3. **考虑生产约束**。中断后能否恢复，敏感动作是否需要审批，重复执行会不会产生副作用，不同用户的数据能否隔离，出错后是否留有完整轨迹。
 
@@ -64,7 +64,7 @@ LangChain、LangGraph 和 LlamaIndex 并不一定三选一。一个企业知识�
 **数据应该放在哪里？**
 
 | 数据 | 作用 | 示例 |
-|------|------|------|
+| --- | --- | --- |
 | State | 执行中不断变化的数据 | 消息、当前步骤、工具结果 |
 | Context | 一次调用期间不变的可信依赖 | 用户 ID、租户、权限 |
 | Store | 跨线程保存的数据 | 用户偏好、长期事实 |
@@ -81,8 +81,8 @@ Middleware 提供模型和工具调用前后的扩展点。请求进入模型前
 
 1. **明确任务边界**，包括 Agent 能做什么、不能做什么、何时结束，以及什么结果算成功。
 2. **选择支持所需工具调用和结构化输出能力的模型**，并把数据库、搜索和业务 API 封装为职责单一、Schema 清晰的 Tools。
-3. **通过 `system_prompt` 约束行为与输出**，如果结果还要交给程序处理，则使用 `response_format` 定义结构化输出。
-4. **通过 `create_agent` 组装 Agent**，它底层使用 LangGraph，在模型判断、工具执行和工具结果回传之间循环。
+3. **通过** `system_prompt` 约束行为与输出，如果结果还要交给程序处理，则使用 `response_format` 定义结构化输出。
+4. **通过** `create_agent` 组装 Agent，它底层使用 LangGraph，在模型判断、工具执行和工具结果回传之间循环。
 5. **补充状态与安全能力**，使用 Checkpointer 按 `thread_id` 保存当前线程状态，使用 Store 管理跨线程信息，通过 Middleware 添加重试、摘要、权限控制和人工审批。
 6. **根据场景选择同步、异步或流式调用**，并设置超时、并发和取消策略。
 7. **先单测 Tool，再测试 Agent 的工具选择与调用轨迹**，最后通过 Trace 观察模型调用、工具参数、耗时、Token 和异常。
@@ -110,13 +110,14 @@ LangChain 中注册 Tool 的本质，是同时向模型提供一份工具说明�
 **最常用的实现方式有四种：**
 
 1. **简单的已有函数**，可以带上类型注解和 docstring 后直接放入 `tools`。
-2. **大多数业务工具使用 `@tool`**，便于自定义名称、描述和参数 Schema。
+2. **大多数业务工具使用** `@tool`，便于自定义名称、描述和参数 Schema。
 3. **需要在运行时组装同步函数、异步函数和 Schema 时**，可以使用 `StructuredTool`。
 4. **工具需要封装客户端、维护资源或定制执行过程时**，再继承 `BaseTool`。
 
 **可信参数如何注入？**
 
 需要区分两类参数：
+
 - **任务参数**（城市、关键词、订单号）：模型根据用户问题生成。
 - **可信参数**（用户 ID、租户、权限、当前状态）：应用运行时注入。
 
@@ -145,6 +146,7 @@ LangChain v1 使用 `ToolRuntime` 把这些可信信息送进工具，用户身�
 **消息太多怎么办？**
 
 常用策略有三种：
+
 - **裁剪**：只选择部分消息进入本次模型上下文，但持久状态仍会继续增长。
 - **删除**：从 State 中永久移除旧消息，信息不可恢复。
 - **摘要**：把早期历史压缩成简短语义摘要，可能遗漏细节或逐轮失真。
@@ -173,7 +175,7 @@ LangChain 和 LlamaIndex 现在都能构建 Agent、调用工具和实现 RAG，
 **选型时应该看项目的主要难点：**
 
 | 项目主要风险 | 优先评估 | 原因 |
-|-------------|----------|------|
+| --- | --- | --- |
 | 模型和业务工具太多，集成复杂 | LangChain | 通用组件和工具接口更自然 |
 | 文档解析、切分和检索质量差 | LlamaIndex | 数据与上下文链路抽象更细 |
 | 流程需要暂停恢复和人工审批 | LangGraph，可搭配 LangChain | 状态与执行控制是核心能力 |
@@ -224,12 +226,12 @@ Chat Memory 保存的是下一次要喂给模型的上下文，可以发生淘�
 
 **LangGraph 则是低层的 Agent 编排框架与运行时**，让开发者直接设计状态、节点、路由、并行、中断和恢复。
 
-两者最关键的关系是，**LangChain v1 的 `create_agent` 构建在 LangGraph 之上**，返回一个编译后的图。也就是说，LangChain Agent 不是脱离 LangGraph 运行的另一套引擎，它已经继承了 LangGraph 的状态、持久化、流式输出、durable execution 和 human-in-the-loop 等运行能力。
+两者最关键的关系是，**LangChain v1 的** `create_agent` 构建在 LangGraph 之上，返回一个编译后的图。也就是说，LangChain Agent 不是脱离 LangGraph 运行的另一套引擎，它已经继承了 LangGraph 的状态、持久化、流式输出、durable execution 和 human-in-the-loop 等运行能力。
 
 **核心差异在于抽象层级：**
 
 | 对比维度 | LangChain v1 | LangGraph |
-|----------|-------------|-----------|
+| --- | --- | --- |
 | 官方定位 | 高层 Agent 开发框架 | 低层 Agent 编排框架与运行时 |
 | 主要入口 | `create_agent`、模型、工具、middleware、结构化输出 | `StateGraph`、State、Node、Edge、`Command`、Send、Subgraph |
 | 控制流 | 标准 Agent loop 已搭好，可通过 middleware 定制行为 | 开发者显式定义顺序、条件路由、循环、并行、动态分发和子图 |
@@ -347,3 +349,4 @@ Deep Research 不是 LangChain 核心包里的一个固定开关，而是一类�
 - [LlamaIndex 官方文档](https://developers.llamaindex.ai/python/framework/)
 - [LangChain4j 官方文档](https://docs.langchain4j.dev/intro/)
 - [LangSmith 官方文档](https://docs.langchain.com/langsmith/overview)
+
