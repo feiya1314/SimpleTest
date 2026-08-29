@@ -1,4 +1,4 @@
-# 1. String为什么是不可变的？设计成不可变有什么好处？
+# 1. String为什么是不可变的？
 
 **不可变类的五条规则：**
 
@@ -26,7 +26,6 @@ public final class String {
    - 线程安全，不可变天生线程安全
    - 常作为HashMap的key，可变会导致key变化
    - 常作为数据库或接口的参数
-
 2. **效率**：
    - 字符串常量池节省空间
    - hashcode可缓存，不用重复计算
@@ -34,6 +33,7 @@ public final class String {
 **String真的完全不可变吗？**
 
 通过反射可以修改String的值：
+
 ```java
 String str = "123";
 Field field = String.class.getDeclaredField("value");
@@ -49,13 +49,14 @@ value[1] = '3';  // str变为"133"
 **原理分析**
 
 **字符串常量池（String Pool）** 是JVM为了提升性能和节省内存而维护的一个特殊内存区域，类似一个系统级别的缓存。有两种方式将字符串放入常量池：
+
 - 直接使用双引号声明的String对象直接存储在常量池中
 - 使用String提供的intern方法
 
 **JDK版本位置变迁：**
 
 | JDK版本 | 字符串常量池位置 | 方法区实现 |
-|---------|----------------|-----------|
+| --- | --- | --- |
 | JDK 6及以前 | **Perm（永久代）** | 永久代（堆内） |
 | JDK 7 | **堆（Heap）** | 永久代（堆内） |
 | JDK 8 | **堆（Heap）** | **元空间**（堆外本地内存） |
@@ -107,7 +108,7 @@ StringTable是固定大小的HashTable，不能自动扩容，默认大小1009�
 **对比分析：**
 
 | 特性 | String | StringBuilder | StringBuffer |
-|------|--------|--------------|-------------|
+| --- | --- | --- | --- |
 | **可变性** | 不可变 | 可变 | 可变 |
 | **线程安全** | 安全（不可变） | 不安全 | 安全（synchronized） |
 | **性能** | 最差（每次修改创建新对象） | 最高 | 中等 |
@@ -148,6 +149,7 @@ String s = a + b + c;
 **JDK 9+优化（invokedynamic + StringConcatFactory）：**
 
 JDK 9开始，字符串拼接不再直接生成StringBuilder调用，而是使用**invokedynamic**指令，引导方法返回**StringConcatFactory**的策略实现。优势：
+
 - 编译时只生成轻量invokedynamic指令，拼接策略由运行时决定
 - 支持**动态策略选择**（如byte[]直接拼接、StringBuilder兜底等）
 - 减少.class体积，更利于未来优化不必改class文件
@@ -170,3 +172,4 @@ String s = sb.toString();
 ```
 
 在循环中使用"+"拼接，编译器每次都会创建新的StringBuilder对象，性能极差。**循环内拼接必须手动创建StringBuilder**。
+
