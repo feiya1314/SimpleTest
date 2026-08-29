@@ -16,7 +16,8 @@ public class LongestConsecutive {
         int max = 0;
         // 注意！！！ 这里使用set，去重后的数据，重复的数据不用再次统计
         for (int num : set) {
-            // 如果num-1在set中，则当前num统计的最优结果也不如num-1
+            // 如果num-1在set中，则当前num统计的最优结果也不如num-1,
+            // 比如当num是100，99在set中，那么统计99的时候，一定会遍历到100，所以不用去管100，直接跳过
             if (set.contains(num - 1)) {
                 continue;
             }

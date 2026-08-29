@@ -78,7 +78,8 @@ public class TwoSum {
         Map<Integer, Integer> integerMap = new HashMap<>();
         for (int i = 0; i < nums.length; i++) {
             int another = target - nums[i];
-            // 相比上面的先放入map，先从map中查是否有，如果有的话，则找到，避免先放入，然后再查，找到自己的情况，例如 4 = 2 + 2，如果2先放map，再查找，会出现，两个位置是同一处的情况
+            // 相比上面的先放入map，先从map中查是否有，如果有的话，则找到，避免先放入，然后再查，找到自己的情况，
+            // 例如 4 = 2 + 2，如果2先放map，再查找，会出现，两个位置是同一处的情况
             Integer index = integerMap.get(another);
             if (index != null) {
                 result[0] = i;
