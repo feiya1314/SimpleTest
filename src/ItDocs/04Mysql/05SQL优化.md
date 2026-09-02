@@ -284,6 +284,43 @@ MySQL的LIMIT m,n工作原理是先读取前m+n条记录，再丢弃前m条取�
 - Using filesort：额外排序无法用索引完成
 - Impossible where：条件永远不成立
 
+**Using temporary 使用临时表**  
+
+MySQL 创建一张\*\*内部临时表\*\*存放中间结果，后续再从临时表里读取数据继续执行。 临时表有可能放在内存 (\`Memory\`)，数据量大溢出后落到磁盘 (\`MyISAM\`)。
+
+性能问题
+
+- 内存临时表：还好一点
+- 超过 `tmp_table_size / max_heap_table_size` → **落到磁盘临时表，速度暴跌**
+- 会产生额外读写开销
+
+**Using filesort 文件排序**
+
+**没有使用索引完成排序**，MySQL 需要自己执行一次排序操作。 
+
+⚠️ 重点误区：**filesort ≠ 文件排序，不一定落盘**。 小数据量在**内存排序**(`sort_buffer`)，数据超出 `sort_buffer_size` 才会使用临时磁盘文件做归并排序。
+
+**怎么优化**
+
+<div class="auto-hide-last-sibling-br paragraph_48351 paragraph-element">针对 Using temporary：
+
+</div>
+
+- 给 GROUP BY / DISTINCT 的列加**索引**，让 MySQL 用索引分组，跳过临时表
+- 避免 SELECT 不必要的列，减少临时表大小
+- 调大内存临时表上限（tmp_table_size /max_heap_table_size）
+- 能用 JOIN 不用子查询，减少嵌套临时表
+
+<div class="auto-hide-last-sibling-br paragraph_48351 paragraph-element">针对 Using filesort：
+
+</div>
+
+- 让 ORDER BY 的列**走索引**（索引本身就是有序的）
+- 索引列顺序和 ORDER BY 顺序、方向保持一致
+- 避免对函数结果、表达式排序
+- 减少排序行数（加 WHERE 过滤，用 LIMIT）
+- 只 SELECT 需要的列（filesort 时列越少，排序越省）
+
 # 15. MySQL的两种排序方式是什么
 
 **MySQL有双路排序和单路排序两种方式，核心区别是排序时取多少数据进sort buffer。**
