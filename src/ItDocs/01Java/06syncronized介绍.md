@@ -18,7 +18,7 @@ synchronized 内存语义进行了分析：当线程获取锁时会从主内存�
 
 ![synchronized底层实现流程](../assets/01Java/22f1cf4e49a640408a4bed6eda463002.png)
 
-# 2. synchronized 的锁有哪几种形式？为什么引入偏向锁和轻量级锁？
+# 2. synchronized锁有几种形式？为什么引入偏向锁和轻量级锁？
 
 synchronized 的锁有哪几种形式？JDK 1.6 为什么要引入偏向锁和轻量级锁？
 
@@ -309,3 +309,4 @@ synchronized (lockObject) {
 # 10. 如何自己实现一个基于 CAS 的自旋锁？
 
 ![偏向锁适用场景](../assets/01Java/02963f6fb0764bb0abbbe01023c428ed.png)
+
