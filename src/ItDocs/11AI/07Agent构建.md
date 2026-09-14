@@ -5,6 +5,36 @@
 
 <https://github.com/humanlayer/12-factor-agents>
 
+
+
+<https://lintsinghua.github.io/#ch15>  **构建你自己的 Agent Harness**
+
+
+<https://zhuanlan.zhihu.com/p/1919338285160965135> **从原理到实践：万字长文深入浅出教你优雅开发复杂AI Agent**
+
+
+<https://github.com/datawhalechina/hello-agents/blob/main/README.md> **《从零开始构建智能体》**
+
+
+<https://cloud.tencent.com/developer/article/2631821> **<span style="color: rgb(0, 0, 0); font-family: &quot;Pingfang SC&quot;, &quot;helvetica neuepingfang SC&quot;, &quot;helvetica neue&quot;, arial, &quot;hiragino sans gb&quot;, &quot;microsoft yahei ui&quot;, &quot;microsoft yahei&quot;, simsun, sans-serif; font-size: 24px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 500; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(255, 255, 255); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;">如何从零开始实现一个 AI Agent 框架（理论+实践）</span>**
+
+
+<https://github.com/shareAI-lab/learn-claude-code/blob/main/README-zh.md>  **Learn Claude Code -- 真正的 Agent Harness 工程**
+
+
+<https://mp.weixin.qq.com/s?__biz=MzUxODAzNDg4NQ==&mid=2247563690&idx=1&sn=e456cfc9cc3263496e177812b283257e&chksm=f98cbd00cefb34161fedac9b5faf2d1d0c3ef31dd16ffb1646a8c163c3944645ed9802b7aec0&scene=178&cur_album_id=4404340926102421504&search_click_id=#rd> **<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; white-space: pre-wrap;" class="js_title_inner">你懂Codex的Harness架构吗？”，我笑了：“何止懂？我还看过源码</span>**
+
+
+<https://mp.weixin.qq.com/s/imwXP56r-llaQwD-qAQM6Q>  **<span style="-webkit-tap-highlight-color: rgba(0, 0, 0, 0); margin: 0px; padding: 0px; outline: 0px; white-space: pre-wrap;" class="js_title_inner">让 Agent 越用越准、成本越来越低：AgentLoop 的 Agent 经验自进化闭环</span>**
+
+
+<https://www.xuanyuancode.com/learn-claude-code/tutorials/cc8b> **上下文压缩管理**
+
+<https://zhuanlan.zhihu.com/p/2021603278606087058> **从 Claude Code 看 Harness Engineer 的设计**
+
+
+<https://github.com/humanlayer/12-factor-agents>
+
 # 2. SSE和websocket区别
 
 
