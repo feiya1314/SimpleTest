@@ -77,7 +77,7 @@ CAS 底层实现的核心是 Unsafe 中调用的 `Atomic::cmpxchg` 方法，该�
 
 这里需要区分两种场景：**片内多核**通常使用 ring bus 互联，一致性由 **MESI** 协议维护；而 **MESIF** 协议（在 MESI 基础上增加 F 转发态）用于 **QPI 跨 socket（多路）**互联，F 态允许 cache-to-cache 直接转发，大大降低了读操作的时延，同时保持了一致性。那么对于 CAS 操作来说，**锁并没有消失，只是转嫁到了总线仲裁协议中**。而且大量的多核同时针对一个地址的 CAS 操作会引起反复的互相 invalidate 同一 cacheline，造成 **pingpong 效应**，同样会降低性能。只能说基于 CAS 的操作仍然不能滥用，不到万不得已不用，通常情况下还是使用数据地址范围分离模式更好。
 
-# 4. 为什么不直接用lock，而是用CAS
+# 4. 为什么不用lock，而是用CAS
 
 直接加 Lock 是**悲观锁思路**，CAS 比较再交换是**乐观锁思路**。
 
@@ -211,6 +211,25 @@ AtomicInteger 底层就是单纯数值比较，**没有版本戳，天然无法�
    > 例如：对象状态、队列节点操作（经典的无锁链表节点删除场景），这时必须用 `AtomicStampedReference`。
 
 > 一句话总结： AtomicInteger **具备 ABA 漏洞**，但在单纯数字计数场景，ABA 一般不影响业务； 如果是状态 / 对象引用的逻辑，不能用它，要带版本戳。
+
+**自旋锁的实现，**自旋CAS，是一个自旋锁**：**
+
+```
+AtomicInteger：
+	public final int getAndIncrement(){
+		return unsafe.getAndAddInt(this,valueOffset,1);
+	}
+	
+	进入unsafe 方法中，可以发现，保证线程安全的方式就是 自旋CAS，是一个自旋锁
+	public final int getAndAddInt(Object var1, long var2, int var4) {         
+	    int var5;                                                             
+	    do {                                                                  
+	        var5 = this.getIntVolatile(var1, var2);                           
+	    } while(!this.compareAndSwapInt(var1, var2, var5, var5 + var4));      
+	                                                                           
+	    return var5;                                                          
+}
+```
 
 # 8. CAS 能保证线程安全吗
 
